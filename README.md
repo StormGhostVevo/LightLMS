@@ -44,6 +44,17 @@ can enrol themselves).
 - Staff: `PATCH /api/admin/courses/:id` `{ title, description, enrolment }`, `GET|POST /api/admin/courses/:id/enrolments`
   (`{ emails: [...] }`, reports who was enrolled, already enrolled or not found), `DELETE /api/admin/courses/:id/enrolments/:userId`
 
+Quizzes: an enrolled learner submits answers, the server marks them and stores the attempt. Per course, staff set a
+`passMark` (0 to 100, default 70), `maxAttempts` (1 to 50, or null for unlimited) and `showAnswers` (`never`,
+`after_pass` (default) or `always`), which controls when the correct options and explanations appear. Unanswered or
+invalid answers count as wrong. Each attempt keeps a snapshot of the questions as the learner saw them, so editing a
+question later never rewrites history.
+
+- Learner: `POST /api/courses/:id/quiz`, `GET /api/courses/:id/attempts` (mine), `GET /api/attempts/:id`, `GET /api/grades` (my best score per course)
+- Staff: `PATCH /api/admin/courses/:id` also takes `passMark`, `maxAttempts`, `showAnswers`
+- Gradebook (staff): `GET /api/admin/courses/:id/gradebook` (per learner, summary, and questions ranked by how often they're missed),
+  `GET /api/admin/courses/:id/gradebook.csv`, `GET /api/admin/courses/:id/users/:userId/attempts`
+
 Authoring routes need the author or admin role:
 
 - `POST /api/admin/ai/draft-course` `{ text }` creates a draft course with lessons and draft questions

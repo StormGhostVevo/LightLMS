@@ -13,9 +13,9 @@ Status: **done** (in the repo), **next** (planned first), **later**, **skip** (d
 | Quiz: multiple choice | Auto-marked questions | `questions`, marked server-side, answers never sent to learners | done |
 | Question bank | Reusable questions | Questions are per course for now; a shared bank with tags later | later |
 | Quiz: other types | True/false, short answer, matching, numeric | Add `kind` column; true/false and short answer first | next |
-| Quiz settings | Attempts, time limit, pass mark, shuffle | Per-course settings; attempts stored | next |
-| Quiz attempts and review | Stored attempts, feedback | `attempts` table, show explanations after submit | next |
-| Gradebook | Scores per learner/course | Derived from attempts; per-course and per-learner views | next |
+| Quiz settings | Attempts, time limit, pass mark, shuffle | Pass mark, attempt limit and answer-reveal rule done; time limit and shuffle later | done |
+| Quiz attempts and review | Stored attempts, feedback | `attempts` table with question snapshots; explanations per reveal rule | done |
+| Gradebook | Scores per learner/course | Per-course gradebook, per-learner attempts, CSV export, hardest questions | done |
 | Users and roles | Admin, teacher, student | `users` + role (admin, author, learner) | done |
 | Authentication | Manual, OAuth, SSO | Email and password, server-side sessions done; OAuth/SSO and password-reset email later | done |
 | Enrolment | Who can access which course | `enrolments` table; manual (staff) and open (self-enrol) | done |
@@ -39,14 +39,14 @@ Status: **done** (in the repo), **next** (planned first), **later**, **skip** (d
 ## AI features Moodle does not have (the point of lightlms)
 
 - **Done:** draft a course from pasted source material; generate quiz questions from lessons; humans approve AI questions before learners see them.
-- **Next:** explanations shown after each attempt; regenerate a single weak question; flag questions most learners miss.
+- **Next:** regenerate a single weak question (the gradebook already ranks the questions most learners miss).
 - **Later:** tutor chat grounded only in the course content; AI marking suggestions for short answers with teacher override; adaptive practice built from missed questions.
 
 ## Suggested build order
 
 1. ~~Users, roles and sessions~~ (done).
 2. ~~Enrolment and per-learner access~~ (done).
-3. Attempts, pass marks, explanations, gradebook.
+3. ~~Attempts, pass marks, explanations, gradebook~~ (done).
 4. More question types and a UI for authors and learners.
 5. Completion tracking and certificates.
 6. Reports, then notifications.

@@ -2,6 +2,7 @@ import express from "express";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { authRouter, usersRouter, sessionMiddleware, requireLogin, requireRole, jsonOnly } from "./auth.js";
+import { mountQuiz } from "./quiz.js";
 import { AiError, MIN_SOURCE, MAX_SOURCE, tidyDraft, tidyQuestions, plain } from "./ai.js";
 
 const now = () => new Date().toISOString();
@@ -115,8 +116,15 @@ export function createApp({ db, config, ai }) {
     const enrolment = b.enrolment ?? c.enrolment;
     if (!title) return bad(res, "A course needs a title");
     if (!["manual", "open"].includes(enrolment)) return bad(res, "Enrolment must be manual or open");
-    db.prepare("UPDATE courses SET title = ?, description = ?, enrolment = ?, updated_at = ? WHERE id = ?").run(title, description, enrolment, now(), c.id);
-    res.json({ id: c.id, title, description, enrolment });
+    const passMark = b.passMark ?? c.pass_mark;
+    if (!Number.isInteger(passMark) || passMark < 0 || passMark > 100) return bad(res, "Pass mark must be a whole number from 0 to 100");
+    const maxAttempts = b.maxAttempts === undefined ? c.max_attempts : b.maxAttempts;   // null = unlimited
+    if (maxAttempts !== null && (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 50)) return bad(res, "Max attempts must be 1 to 50, or null for unlimited");
+    const showAnswers = b.showAnswers ?? c.show_answers;
+    if (!["never", "after_pass", "always"].includes(showAnswers)) return bad(res, "showAnswers must be never, after_pass or always");
+    db.prepare("UPDATE courses SET title = ?, description = ?, enrolment = ?, pass_mark = ?, max_attempts = ?, show_answers = ?, updated_at = ? WHERE id = ?")
+      .run(title, description, enrolment, passMark, maxAttempts, showAnswers, now(), c.id);
+    res.json({ id: c.id, title, description, enrolment, passMark, maxAttempts, showAnswers });
   });
 
   admin.get("/courses/:id/enrolments", (req, res) => {
@@ -191,23 +199,13 @@ export function createApp({ db, config, ai }) {
   app.get("/api/courses/:id", requireLogin, (req, res) => {
     const c = visible(req, res);
     if (!c) return;
-    res.json({ id: c.id, title: c.title, description: c.description,
+    res.json({ id: c.id, title: c.title, description: c.description, passMark: c.pass_mark, maxAttempts: c.max_attempts,
       lessons: db.prepare("SELECT id, title, body FROM lessons WHERE course_id = ? ORDER BY position").all(c.id),
       questions: db.prepare("SELECT id, prompt, options FROM questions WHERE course_id = ? AND status = 'approved' ORDER BY position").all(c.id)
         .map(q => ({ id: q.id, prompt: q.prompt, options: JSON.parse(q.options) })) });
   });
 
-  // Marked on the server; only enrolled people can take it. Body: { answers: { "<questionId>": <optionIndex> } }
-  app.post("/api/courses/:id/quiz", requireLogin, rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: true, legacyHeaders: false }), (req, res) => {
-    const c = visible(req, res);
-    if (!c) return;
-    if (!enrolled(c.id, req.user.id)) return bad(res, "Enrol in this course to take the quiz", 403);
-    const given = req.body?.answers;
-    if (!given || typeof given !== "object" || Array.isArray(given)) return bad(res, "Send answers as an object of questionId to option index");
-    const qs = db.prepare("SELECT id, answer, explanation FROM questions WHERE course_id = ? AND status = 'approved' ORDER BY position").all(c.id);
-    const results = qs.map(q => ({ id: q.id, correct: given[q.id] === q.answer, explanation: q.explanation }));
-    res.json({ score: results.filter(r => r.correct).length, total: qs.length, results });
-  });
+  mountQuiz({ app, admin, db, course, visible, enrolled, requireLogin });
 
   app.use("/", express.static(new URL("../public", import.meta.url).pathname));
 
