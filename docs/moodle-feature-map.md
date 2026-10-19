@@ -20,7 +20,7 @@ Status: **done** (in the repo), **next** (planned first), **later**, **skip** (d
 | Authentication | Manual, OAuth, SSO | Email and password, server-side sessions done; OAuth/SSO and password-reset email later | done |
 | Enrolment | Who can access which course | `enrolments` table; manual (staff) and open (self-enrol) | done |
 | Groups / cohorts | Bulk enrolment, group work | Bulk enrol by email list done; groups table feeding enrolment rules later | later |
-| Completion tracking | Activity and course completion | Lesson-viewed + quiz-passed rules, per learner | next |
+| Completion tracking | Activity and course completion | Per-course rule (lessons, quiz or both), manual lesson ticks, sticky course completion | done |
 | Certificates | Plugin: award on completion | Unique per-learner ID, printable page | later |
 | Badges | Awards for achievements | Reuse completion rules | later |
 | Assignments | Submit files, teacher grades | Text/file submission, rubric; AI-assisted marking suggestions with teacher override | later |
@@ -48,5 +48,5 @@ Status: **done** (in the repo), **next** (planned first), **later**, **skip** (d
 2. ~~Enrolment and per-learner access~~ (done).
 3. ~~Attempts, pass marks, explanations, gradebook~~ (done).
 4. More question types and a UI for authors and learners.
-5. Completion tracking and certificates.
+5. ~~Completion tracking~~ (done), then certificates.
 6. Reports, then notifications.

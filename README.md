@@ -55,6 +55,15 @@ question later never rewrites history.
 - Gradebook (staff): `GET /api/admin/courses/:id/gradebook` (per learner, summary, and questions ranked by how often they're missed),
   `GET /api/admin/courses/:id/gradebook.csv`, `GET /api/admin/courses/:id/users/:userId/attempts`
 
+Completion: each course has a `completion` rule, `lessons` (every lesson marked done), `quiz` (quiz passed) or `both`
+(the default; the quiz part is ignored if the course has no approved questions). Learners mark lessons done
+themselves. The course is recorded as complete the first time the rule is met, and that is never taken back (adding a
+lesson later or unticking one doesn't undo it). Changing the rule completes anyone who now qualifies. A course with
+nothing to require never completes.
+
+- Learner: `GET /api/courses/:id/progress`, `POST|DELETE /api/courses/:id/lessons/:lessonId/complete`; `GET /api/courses` now includes `percent` and `completed`
+- Staff: `PATCH /api/admin/courses/:id` takes `completion`; the gradebook shows lessons done and completion per learner
+
 Authoring routes need the author or admin role:
 
 - `POST /api/admin/ai/draft-course` `{ text }` creates a draft course with lessons and draft questions

@@ -11,7 +11,7 @@ const csvCell = v => {
 };
 
 // Quiz attempts (learner) and the gradebook (staff). Marking happens only here, on the server.
-export function mountQuiz({ app, admin, db, course, visible, enrolled, requireLogin }) {
+export function mountQuiz({ app, admin, db, course, visible, enrolled, requireLogin, evaluate }) {
   const passedBefore = (courseId, userId) =>
     !!db.prepare("SELECT 1 FROM attempts WHERE course_id = ? AND user_id = ? AND passed = 1").get(courseId, userId);
   const used = (courseId, userId) =>
@@ -59,6 +59,7 @@ export function mountQuiz({ app, admin, db, course, visible, enrolled, requireLo
       if (err.limit) return bad(res, `You've used all ${c.max_attempts} attempts for this quiz`, 409);
       throw err;
     }
+    evaluate(db, c, req.user.id);   // a pass may complete the course
     res.status(201).json({ ...shape(attempt, c, reveals(c, req.user.id)), attemptsUsed: used(c.id, req.user.id), maxAttempts: c.max_attempts });
   });
 
@@ -90,9 +91,12 @@ export function mountQuiz({ app, admin, db, course, visible, enrolled, requireLo
   // ---- gradebook (authors and admins) ----
   const gradebook = courseId => db.prepare(`
     SELECT u.id AS userId, u.email, u.name, COUNT(a.id) AS attempts, MAX(a.percent) AS bestPercent,
-           COALESCE(MAX(a.passed), 0) AS passed, MAX(a.submitted_at) AS lastAttemptAt
+           COALESCE(MAX(a.passed), 0) AS passed, MAX(a.submitted_at) AS lastAttemptAt,
+           (SELECT COUNT(*) FROM lesson_progress lp WHERE lp.course_id = e.course_id AND lp.user_id = e.user_id) AS lessonsCompleted,
+           cc.completed_at AS completedAt
     FROM enrolments e JOIN users u ON u.id = e.user_id
     LEFT JOIN attempts a ON a.course_id = e.course_id AND a.user_id = e.user_id
+    LEFT JOIN course_completions cc ON cc.course_id = e.course_id AND cc.user_id = e.user_id
     WHERE e.course_id = ? GROUP BY u.id ORDER BY u.email`).all(courseId).map(r => ({ ...r, passed: !!r.passed }));
 
   admin.get("/courses/:id/gradebook", (req, res) => {
@@ -112,7 +116,8 @@ export function mountQuiz({ app, admin, db, course, visible, enrolled, requireLo
     res.json({
       course: { id: c.id, title: c.title, passMark: c.pass_mark, maxAttempts: c.max_attempts },
       summary: {
-        enrolled: learners.length, attempted: tried.length, passed: learners.filter(l => l.passed).length,
+        enrolled: learners.length, attempted: tried.length, passed: learners.filter(l => l.passed).length, completed: learners.filter(l => l.completedAt).length,
+        lessons: db.prepare("SELECT COUNT(*) FROM lessons WHERE course_id = ?").pluck().get(c.id),
         averageBestPercent: tried.length ? Math.round(tried.reduce((n, l) => n + l.bestPercent, 0) / tried.length) : null,
       },
       learners,
@@ -124,8 +129,8 @@ export function mountQuiz({ app, admin, db, course, visible, enrolled, requireLo
   admin.get("/courses/:id/gradebook.csv", (req, res) => {
     const c = course(req.params.id);
     if (!c) return bad(res, "Course not found", 404);
-    const rows = [["Email", "Name", "Attempts", "Best %", "Passed", "Last attempt"],
-      ...gradebook(c.id).map(l => [l.email, l.name, l.attempts, l.bestPercent ?? "", l.passed ? "Yes" : "No", l.lastAttemptAt ?? ""])];
+    const rows = [["Email", "Name", "Lessons done", "Attempts", "Best %", "Passed", "Completed", "Last attempt"],
+      ...gradebook(c.id).map(l => [l.email, l.name, l.lessonsCompleted, l.attempts, l.bestPercent ?? "", l.passed ? "Yes" : "No", l.completedAt ?? "", l.lastAttemptAt ?? ""])];
     res.type("text/csv").set("Content-Disposition", `attachment; filename="gradebook-${c.id}.csv"`).send(rows.map(r => r.map(csvCell).join(",")).join("\r\n") + "\r\n");
   });
 
