@@ -1,30 +1,24 @@
 import express from "express";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
-import { timingSafeEqual } from "node:crypto";
+import { authRouter, usersRouter, sessionMiddleware, requireLogin, requireRole, jsonOnly } from "./auth.js";
 import { AiError, MIN_SOURCE, MAX_SOURCE, tidyDraft, tidyQuestions, plain } from "./ai.js";
 
 const now = () => new Date().toISOString();
 const bad = (res, msg, status = 400) => res.status(status).json({ error: msg });
 const toQuestion = r => ({ id: r.id, prompt: r.prompt, options: JSON.parse(r.options), answer: r.answer, explanation: r.explanation, source: r.source, status: r.status });
 
-function sameToken(a, b) {
-  const x = Buffer.from(a), y = Buffer.from(b);
-  return x.length === y.length && timingSafeEqual(x, y);
-}
-
 export function createApp({ db, config, ai }) {
   const app = express();
   app.use(helmet());
   app.use(express.json({ limit: "200kb" }));
   app.get("/health", (req, res) => res.json({ ok: true }));
+  app.use("/api", jsonOnly, sessionMiddleware(db));
+  app.use("/api/auth", authRouter({ db, config }));
 
-  // ---- authoring (staff token) ----
+  // ---- authoring (authors and admins) ----
   const admin = express.Router();
-  admin.use((req, res, next) => {
-    const m = /^Bearer (.+)$/.exec(req.get("authorization") || "");
-    return m && config.adminToken && sameToken(m[1], config.adminToken) ? next() : bad(res, "Not authorised", 401);
-  });
+  admin.use(requireRole("author", "admin"));
 
   const aiLimit = rateLimit({ windowMs: 10 * 60_000, limit: 20, standardHeaders: true, legacyHeaders: false,
     message: { error: "That's a lot of AI requests. Try again in a few minutes." } });
@@ -119,13 +113,14 @@ export function createApp({ db, config, ai }) {
     res.json({ id: c.id, status: "published" });
   });
 
+  app.use("/api/admin/users", requireRole("admin"), usersRouter({ db }));
   app.use("/api/admin", admin);
 
-  // ---- learner (published courses only; correct answers never leave the server) ----
-  app.get("/api/courses", (req, res) =>
+  // ---- learner (signed in; published courses only; correct answers never leave the server) ----
+  app.get("/api/courses", requireLogin, (req, res) =>
     res.json(db.prepare("SELECT id, title, description FROM courses WHERE status = 'published' ORDER BY title").all()));
 
-  app.get("/api/courses/:id", (req, res) => {
+  app.get("/api/courses/:id", requireLogin, (req, res) => {
     const c = course(req.params.id);
     if (!c || c.status !== "published") return bad(res, "Course not found", 404);
     res.json({ id: c.id, title: c.title, description: c.description,
@@ -135,7 +130,7 @@ export function createApp({ db, config, ai }) {
   });
 
   // Marked on the server. Body: { answers: { "<questionId>": <optionIndex> } }
-  app.post("/api/courses/:id/quiz", rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: true, legacyHeaders: false }), (req, res) => {
+  app.post("/api/courses/:id/quiz", requireLogin, rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: true, legacyHeaders: false }), (req, res) => {
     const c = course(req.params.id);
     if (!c || c.status !== "published") return bad(res, "Course not found", 404);
     const given = req.body?.answers;

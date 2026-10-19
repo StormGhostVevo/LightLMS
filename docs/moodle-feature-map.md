@@ -16,8 +16,8 @@ Status: **done** (in the repo), **next** (planned first), **later**, **skip** (d
 | Quiz settings | Attempts, time limit, pass mark, shuffle | Per-course settings; attempts stored | next |
 | Quiz attempts and review | Stored attempts, feedback | `attempts` table, show explanations after submit | next |
 | Gradebook | Scores per learner/course | Derived from attempts; per-course and per-learner views | next |
-| Users and roles | Admin, teacher, student | `users` + role (admin, author, learner); replaces the single staff token | next |
-| Authentication | Manual, OAuth, SSO | Magic link or OAuth (provider TBD); sessions server-side | next |
+| Users and roles | Admin, teacher, student | `users` + role (admin, author, learner) | done |
+| Authentication | Manual, OAuth, SSO | Email and password, server-side sessions done; OAuth/SSO and password-reset email later | done |
 | Enrolment | Who can access which course | `enrolments` table, manual and by group | next |
 | Groups / cohorts | Bulk enrolment, group work | Groups table feeding enrolment rules | later |
 | Completion tracking | Activity and course completion | Lesson-viewed + quiz-passed rules, per learner | next |
@@ -44,7 +44,7 @@ Status: **done** (in the repo), **next** (planned first), **later**, **skip** (d
 
 ## Suggested build order
 
-1. Users, roles and sessions (replace the staff token).
+1. ~~Users, roles and sessions~~ (done).
 2. Enrolment and per-learner access.
 3. Attempts, pass marks, explanations, gradebook.
 4. More question types and a UI for authors and learners.

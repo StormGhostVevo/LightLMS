@@ -17,13 +17,30 @@ Moodle's features are rebuilt from scratch (clean-room, no Moodle code). See [do
 Set `AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` to use the real AI. Pasted text is then sent to Anthropic, so only
 use material you are cleared to share.
 
-## API (first slice)
+## Accounts and roles
 
-Authoring routes need `Authorization: Bearer <ADMIN_TOKEN>` (`dev-token` in development).
+Email and password sign-in (scrypt hashes, server-side sessions in an httpOnly SameSite=Lax cookie, 7 days). There is
+no public sign-up. Roles: **admin** (everything, manages users), **author** (builds courses and reviews questions),
+**learner** (takes published courses).
+
+Make the first admin, then sign in and create everyone else through the API:
+
+    npm run create-user -- you@example.com admin     # prints a temporary password once
+
+Admins create users and reset passwords; the temporary password is shown once and the user is expected to change it.
+Deactivating a user or changing their role ends their sessions. The last active admin can't be demoted or deactivated.
+Writes to `/api/*` must be sent as `application/json` (part of the CSRF protection).
+
+## API
+
+- `POST /api/auth/login` `{ email, password }`, `POST /api/auth/logout`, `GET /api/auth/me`, `POST /api/auth/password` `{ current, next }`
+- `GET|POST /api/admin/users`, `PATCH /api/admin/users/:id` `{ role, active, name, resetPassword }` (admin only)
+
+Authoring routes need the author or admin role:
 
 - `POST /api/admin/ai/draft-course` `{ text }` creates a draft course with lessons and draft questions
 - `POST /api/admin/courses/:id/quiz/generate` `{ count }` adds draft questions from the lessons
 - `PATCH /api/admin/questions/:id` edit or approve (`status: "approved"`); `DELETE` removes
 - `POST /api/admin/courses/:id/publish`
-- `GET /api/courses`, `GET /api/courses/:id` published courses; only approved questions, no answers
+- Signed-in users: `GET /api/courses`, `GET /api/courses/:id` published courses; only approved questions, no answers
 - `POST /api/courses/:id/quiz` `{ answers: { questionId: optionIndex } }` marked on the server

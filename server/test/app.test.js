@@ -2,6 +2,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { openDb } from "../db.js";
 import { createApp } from "../app.js";
+import { hashPassword } from "../auth.js";
 import { stubProvider, tidyQuestions, cleanBody } from "../ai.js";
 
 const TOKEN = "test-token-test-token-1234";
@@ -10,45 +11,66 @@ const SOURCE = "Safety basics\n\nAlways wear a helmet on site.\n\nReport hazards
 const servers = [];
 after(() => servers.forEach(s => { s.closeAllConnections(); s.close(); }));
 
+const PW = "correct-horse-battery";
+
+// Starts an app with an admin, an author and a learner already created.
 async function start(ai = stubProvider()) {
-  const app = createApp({ db: openDb(":memory:"), config: { adminToken: TOKEN }, ai });
+  const db = openDb(":memory:");
+  const hash = await hashPassword(PW);
+  for (const role of ["admin", "author", "learner"])
+    db.prepare("INSERT INTO users (email, role, password_hash, created_at) VALUES (?, ?, ?, ?)").run(`${role}@example.com`, role, hash, new Date().toISOString());
+  const app = createApp({ db, config: {}, ai });
   const server = app.listen(0);
   servers.push(server);
   const base = `http://localhost:${server.address().port}`;
-  const call = (path, { method = "GET", body, auth = true } = {}) =>
-    fetch(base + path, { method, headers: { "content-type": "application/json", ...(auth ? { authorization: `Bearer ${TOKEN}` } : {}) }, body: body && JSON.stringify(body) })
-      .then(async r => ({ status: r.status, body: r.status === 204 ? null : await r.json() }));
-  return { call, close: () => { server.closeAllConnections(); server.close(); } };
+  const raw = (path, { method = "GET", body, cookie, type = "application/json" } = {}) =>
+    fetch(base + path, { method, headers: { ...(type ? { "content-type": type } : {}), ...(cookie ? { cookie } : {}) }, body: body && JSON.stringify(body) });
+  const parse = async r => ({ status: r.status, body: r.status === 204 ? null : await r.json(), setCookie: r.headers.get("set-cookie") });
+  // Signs in and returns a call() bound to that session. role: admin | author | learner | null (signed out)
+  const as = async role => {
+    let cookie;
+    if (role) {
+      const login = await parse(await raw("/api/auth/login", { method: "POST", body: { email: `${role}@example.com`, password: PW } }));
+      cookie = login.setCookie.split(";")[0];
+    }
+    return (path, opts = {}) => raw(path, { ...opts, cookie }).then(parse);
+  };
+  return { db, raw, parse, as, close: () => { server.closeAllConnections(); server.close(); } };
 }
 
-test("authoring routes need the token", async () => {
+test("authoring needs an author or admin; learners and signed-out users are refused", async () => {
   const s = await start();
-  assert.equal((await s.call("/api/admin/courses", { auth: false })).status, 401);
+  assert.equal((await (await s.as(null))("/api/admin/courses")).status, 401);
+  assert.equal((await (await s.as("learner"))("/api/admin/courses")).status, 403);
+  assert.equal((await (await s.as("author"))("/api/admin/courses")).status, 200);
   s.close();
 });
 
 test("draft, approve, publish, learner quiz never leaks answers", async () => {
   const s = await start();
-  const made = await s.call("/api/admin/ai/draft-course", { method: "POST", body: { text: SOURCE } });
+  const author = await s.as("author"), learner = await s.as("learner"), out = await s.as(null);
+  const made = await author("/api/admin/ai/draft-course", { method: "POST", body: { text: SOURCE } });
   assert.equal(made.status, 201);
   const id = made.body.id;
-  assert.equal((await s.call(`/api/courses/${id}`)).status, 404); // unpublished
-  const full = (await s.call(`/api/admin/courses/${id}`)).body;
+  assert.equal((await learner(`/api/courses/${id}`)).status, 404); // unpublished
+  const full = (await author(`/api/admin/courses/${id}`)).body;
   assert.ok(full.lessons.length >= 1 && full.questions.every(q => q.status === "draft" && q.source === "ai"));
-  await s.call(`/api/admin/questions/${full.questions[0].id}`, { method: "PATCH", body: { status: "approved" } });
-  await s.call(`/api/admin/courses/${id}/publish`, { method: "POST" });
-  const learner = (await s.call(`/api/courses/${id}`, { auth: false })).body;
-  assert.equal(learner.questions.length, 1); // only the approved one
-  assert.ok(!("answer" in learner.questions[0]));
-  const marked = (await s.call(`/api/courses/${id}/quiz`, { method: "POST", auth: false, body: { answers: { [learner.questions[0].id]: 0 } } })).body;
+  await author(`/api/admin/questions/${full.questions[0].id}`, { method: "PATCH", body: { status: "approved" } });
+  await author(`/api/admin/courses/${id}/publish`, { method: "POST", body: {} });
+  assert.equal((await out(`/api/courses/${id}`)).status, 401);
+  const view = (await learner(`/api/courses/${id}`)).body;
+  assert.equal(view.questions.length, 1); // only the approved one
+  assert.ok(!("answer" in view.questions[0]));
+  const marked = (await learner(`/api/courses/${id}/quiz`, { method: "POST", body: { answers: { [view.questions[0].id]: 0 } } })).body;
   assert.deepEqual([marked.score, marked.total], [1, 1]);
   s.close();
 });
 
 test("generating a quiz adds draft questions", async () => {
   const s = await start();
-  const { body: { id } } = await s.call("/api/admin/ai/draft-course", { method: "POST", body: { text: SOURCE } });
-  const r = await s.call(`/api/admin/courses/${id}/quiz/generate`, { method: "POST", body: { count: 2 } });
+  const author = await s.as("author");
+  const { body: { id } } = await author("/api/admin/ai/draft-course", { method: "POST", body: { text: SOURCE } });
+  const r = await author(`/api/admin/courses/${id}/quiz/generate`, { method: "POST", body: { count: 2 } });
   assert.equal(r.status, 201);
   assert.equal(r.body.added, 2);
   s.close();
@@ -56,11 +78,60 @@ test("generating a quiz adds draft questions", async () => {
 
 test("too-short source is refused and AI off returns 503", async () => {
   const s = await start();
-  assert.equal((await s.call("/api/admin/ai/draft-course", { method: "POST", body: { text: "hi" } })).status, 400);
-  s.close();
+  assert.equal((await (await s.as("author"))("/api/admin/ai/draft-course", { method: "POST", body: { text: "hi" } })).status, 400);
   const off = await start({ name: "off" });
-  assert.equal((await off.call("/api/admin/ai/draft-course", { method: "POST", body: { text: SOURCE } })).status, 503);
-  off.close();
+  assert.equal((await (await off.as("author"))("/api/admin/ai/draft-course", { method: "POST", body: { text: SOURCE } })).status, 503);
+});
+
+test("login: wrong password and unknown email get the same answer; cookie is httpOnly", async () => {
+  const s = await start();
+  const wrong = await s.parse(await s.raw("/api/auth/login", { method: "POST", body: { email: "learner@example.com", password: "nope-nope-nope" } }));
+  const unknown = await s.parse(await s.raw("/api/auth/login", { method: "POST", body: { email: "ghost@example.com", password: "nope-nope-nope" } }));
+  assert.deepEqual([wrong.status, wrong.body], [unknown.status, unknown.body]);
+  const ok = await s.parse(await s.raw("/api/auth/login", { method: "POST", body: { email: "LEARNER@example.com", password: PW } }));
+  assert.equal(ok.status, 200);
+  assert.match(ok.setCookie, /HttpOnly/);
+  assert.match(ok.setCookie, /SameSite=Lax/);
+  const row = s.db.prepare("SELECT id_hash FROM sessions").get();
+  assert.ok(!ok.setCookie.includes(row.id_hash)); // the database holds a hash, not the cookie value
+});
+
+test("logout ends the session; writes without a JSON content type are refused", async () => {
+  const s = await start();
+  const login = await s.parse(await s.raw("/api/auth/login", { method: "POST", body: { email: "learner@example.com", password: PW } }));
+  const cookie = login.setCookie.split(";")[0];
+  assert.equal((await s.parse(await s.raw("/api/auth/me", { cookie }))).status, 200);
+  assert.equal((await s.raw("/api/auth/logout", { method: "POST", cookie, type: "text/plain" })).status, 415);
+  assert.equal((await s.raw("/api/auth/logout", { method: "POST", cookie })).status, 204);
+  assert.equal((await s.parse(await s.raw("/api/auth/me", { cookie }))).status, 401);
+});
+
+test("admin creates users; only admins can; deactivating ends their sessions; last admin is protected", async () => {
+  const s = await start();
+  const admin = await s.as("admin"), author = await s.as("author"), learner = await s.as("learner");
+  assert.equal((await author("/api/admin/users")).status, 403);
+  const made = await admin("/api/admin/users", { method: "POST", body: { email: "new@example.com", role: "author" } });
+  assert.equal(made.status, 201);
+  assert.ok(made.body.temporaryPassword.length >= 10);
+  assert.equal((await admin("/api/admin/users", { method: "POST", body: { email: "NEW@example.com" } })).status, 409);
+  assert.equal((await admin("/api/admin/users", { method: "POST", body: { email: "x@example.com", role: "root" } })).status, 400);
+  const learnerId = s.db.prepare("SELECT id FROM users WHERE email = 'learner@example.com'").pluck().get();
+  await admin(`/api/admin/users/${learnerId}`, { method: "PATCH", body: { active: false } });
+  assert.equal((await learner("/api/auth/me")).status, 401);
+  const adminId = s.db.prepare("SELECT id FROM users WHERE email = 'admin@example.com'").pluck().get();
+  assert.equal((await admin(`/api/admin/users/${adminId}`, { method: "PATCH", body: { role: "learner" } })).status, 409);
+  s.close();
+});
+
+test("changing password needs the current one and ends other sessions", async () => {
+  const s = await start();
+  const a = await s.as("learner"), b = await s.as("learner");
+  assert.equal((await a("/api/auth/password", { method: "POST", body: { current: "wrong-wrong-wrong", next: "a-new-long-password" } })).status, 401);
+  assert.equal((await a("/api/auth/password", { method: "POST", body: { current: PW, next: "short" } })).status, 400);
+  assert.equal((await a("/api/auth/password", { method: "POST", body: { current: PW, next: "a-new-long-password" } })).status, 204);
+  assert.equal((await b("/api/auth/me")).status, 401); // the other session was ended
+  const again = await s.parse(await s.raw("/api/auth/login", { method: "POST", body: { email: "learner@example.com", password: "a-new-long-password" } }));
+  assert.equal(again.status, 200);
 });
 
 test("tidyQuestions drops bad questions; cleanBody strips scripts", () => {
