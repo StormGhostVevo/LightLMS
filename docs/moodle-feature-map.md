@@ -18,8 +18,8 @@ Status: **done** (in the repo), **next** (planned first), **later**, **skip** (d
 | Gradebook | Scores per learner/course | Derived from attempts; per-course and per-learner views | next |
 | Users and roles | Admin, teacher, student | `users` + role (admin, author, learner) | done |
 | Authentication | Manual, OAuth, SSO | Email and password, server-side sessions done; OAuth/SSO and password-reset email later | done |
-| Enrolment | Who can access which course | `enrolments` table, manual and by group | next |
-| Groups / cohorts | Bulk enrolment, group work | Groups table feeding enrolment rules | later |
+| Enrolment | Who can access which course | `enrolments` table; manual (staff) and open (self-enrol) | done |
+| Groups / cohorts | Bulk enrolment, group work | Bulk enrol by email list done; groups table feeding enrolment rules later | later |
 | Completion tracking | Activity and course completion | Lesson-viewed + quiz-passed rules, per learner | next |
 | Certificates | Plugin: award on completion | Unique per-learner ID, printable page | later |
 | Badges | Awards for achievements | Reuse completion rules | later |
@@ -45,7 +45,7 @@ Status: **done** (in the repo), **next** (planned first), **later**, **skip** (d
 ## Suggested build order
 
 1. ~~Users, roles and sessions~~ (done).
-2. Enrolment and per-learner access.
+2. ~~Enrolment and per-learner access~~ (done).
 3. Attempts, pass marks, explanations, gradebook.
 4. More question types and a UI for authors and learners.
 5. Completion tracking and certificates.

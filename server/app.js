@@ -105,6 +105,51 @@ export function createApp({ db, config, ai }) {
     res.status(204).end();
   });
 
+  // Title, description and who may enrol.
+  admin.patch("/courses/:id", (req, res) => {
+    const c = course(req.params.id);
+    if (!c) return bad(res, "Course not found", 404);
+    const b = req.body || {};
+    const title = b.title === undefined ? c.title : plain(b.title).slice(0, 200);
+    const description = b.description === undefined ? c.description : plain(b.description).slice(0, 1000);
+    const enrolment = b.enrolment ?? c.enrolment;
+    if (!title) return bad(res, "A course needs a title");
+    if (!["manual", "open"].includes(enrolment)) return bad(res, "Enrolment must be manual or open");
+    db.prepare("UPDATE courses SET title = ?, description = ?, enrolment = ?, updated_at = ? WHERE id = ?").run(title, description, enrolment, now(), c.id);
+    res.json({ id: c.id, title, description, enrolment });
+  });
+
+  admin.get("/courses/:id/enrolments", (req, res) => {
+    if (!course(req.params.id)) return bad(res, "Course not found", 404);
+    res.json(db.prepare(`SELECT u.id, u.email, u.name, u.role, e.enrolled_at, e.enrolled_by IS NULL AS self_enrolled FROM enrolments e
+                         JOIN users u ON u.id = e.user_id WHERE e.course_id = ? ORDER BY u.email`).all(req.params.id)
+      .map(r => ({ ...r, self_enrolled: !!r.self_enrolled })));
+  });
+
+  // Body: { emails: [...] }. Unknown or inactive emails are reported back, never silently skipped.
+  admin.post("/courses/:id/enrolments", (req, res) => {
+    const c = course(req.params.id);
+    if (!c) return bad(res, "Course not found", 404);
+    const emails = req.body?.emails;
+    if (!Array.isArray(emails) || !emails.length || emails.length > 500 || emails.some(e => typeof e !== "string")) return bad(res, "Send up to 500 email addresses as { emails: [...] }");
+    const out = { enrolled: [], alreadyEnrolled: [], notFound: [] };
+    const find = db.prepare("SELECT id FROM users WHERE email = ? AND active = 1");
+    const ins = db.prepare("INSERT OR IGNORE INTO enrolments (course_id, user_id, enrolled_at, enrolled_by) VALUES (?, ?, ?, ?)");
+    db.transaction(() => {
+      for (const email of [...new Set(emails.map(e => e.trim().toLowerCase()))]) {
+        const u = find.get(email);
+        if (!u) out.notFound.push(email);
+        else (ins.run(c.id, u.id, now(), req.user.id).changes ? out.enrolled : out.alreadyEnrolled).push(email);
+      }
+    })();
+    res.json(out);
+  });
+
+  admin.delete("/courses/:id/enrolments/:userId", (req, res) => {
+    const r = db.prepare("DELETE FROM enrolments WHERE course_id = ? AND user_id = ?").run(req.params.id, req.params.userId);
+    r.changes ? res.status(204).end() : bad(res, "That person isn't enrolled", 404);
+  });
+
   admin.post("/courses/:id/publish", (req, res) => {
     const c = course(req.params.id);
     if (!c) return bad(res, "Course not found", 404);
@@ -117,22 +162,46 @@ export function createApp({ db, config, ai }) {
   app.use("/api/admin", admin);
 
   // ---- learner (signed in; published courses only; correct answers never leave the server) ----
+  const isStaff = u => u.role === "author" || u.role === "admin";
+  const enrolled = (courseId, userId) => !!db.prepare("SELECT 1 FROM enrolments WHERE course_id = ? AND user_id = ?").get(courseId, userId);
+  // A published course the person may read: enrolled, or staff previewing. Anything else looks like it doesn't exist.
+  const visible = (req, res) => {
+    const c = course(req.params.id);
+    if (!c || c.status !== "published" || !(enrolled(c.id, req.user.id) || isStaff(req.user))) { bad(res, "Course not found", 404); return null; }
+    return c;
+  };
+
+  // My courses.
   app.get("/api/courses", requireLogin, (req, res) =>
-    res.json(db.prepare("SELECT id, title, description FROM courses WHERE status = 'published' ORDER BY title").all()));
+    res.json(db.prepare(`SELECT c.id, c.title, c.description FROM courses c JOIN enrolments e ON e.course_id = c.id
+                         WHERE c.status = 'published' AND e.user_id = ? ORDER BY c.title`).all(req.user.id)));
+
+  // Open courses I could join.
+  app.get("/api/courses/available", requireLogin, (req, res) =>
+    res.json(db.prepare(`SELECT id, title, description FROM courses WHERE status = 'published' AND enrolment = 'open'
+                         AND id NOT IN (SELECT course_id FROM enrolments WHERE user_id = ?) ORDER BY title`).all(req.user.id)));
+
+  app.post("/api/courses/:id/enrol", requireLogin, (req, res) => {
+    const c = course(req.params.id);
+    if (!c || c.status !== "published" || c.enrolment !== "open") return bad(res, "That course isn't open for self-enrolment", 404);
+    db.prepare("INSERT OR IGNORE INTO enrolments (course_id, user_id, enrolled_at, enrolled_by) VALUES (?, ?, ?, NULL)").run(c.id, req.user.id, now());
+    res.status(201).json({ id: c.id, enrolled: true });
+  });
 
   app.get("/api/courses/:id", requireLogin, (req, res) => {
-    const c = course(req.params.id);
-    if (!c || c.status !== "published") return bad(res, "Course not found", 404);
+    const c = visible(req, res);
+    if (!c) return;
     res.json({ id: c.id, title: c.title, description: c.description,
       lessons: db.prepare("SELECT id, title, body FROM lessons WHERE course_id = ? ORDER BY position").all(c.id),
       questions: db.prepare("SELECT id, prompt, options FROM questions WHERE course_id = ? AND status = 'approved' ORDER BY position").all(c.id)
         .map(q => ({ id: q.id, prompt: q.prompt, options: JSON.parse(q.options) })) });
   });
 
-  // Marked on the server. Body: { answers: { "<questionId>": <optionIndex> } }
+  // Marked on the server; only enrolled people can take it. Body: { answers: { "<questionId>": <optionIndex> } }
   app.post("/api/courses/:id/quiz", requireLogin, rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: true, legacyHeaders: false }), (req, res) => {
-    const c = course(req.params.id);
-    if (!c || c.status !== "published") return bad(res, "Course not found", 404);
+    const c = visible(req, res);
+    if (!c) return;
+    if (!enrolled(c.id, req.user.id)) return bad(res, "Enrol in this course to take the quiz", 403);
     const given = req.body?.answers;
     if (!given || typeof given !== "object" || Array.isArray(given)) return bad(res, "Send answers as an object of questionId to option index");
     const qs = db.prepare("SELECT id, answer, explanation FROM questions WHERE course_id = ? AND status = 'approved' ORDER BY position").all(c.id);

@@ -73,7 +73,7 @@ export const requireRole = (...roles) => (req, res, next) =>
 
 // Cross-site form posts can't set a JSON content type, so requiring it on writes blocks CSRF alongside SameSite=Lax.
 export const jsonOnly = (req, res, next) =>
-  ["GET", "HEAD", "OPTIONS"].includes(req.method) || req.is("application/json") ? next() : bad(res, "Send JSON", 415);
+  ["GET", "HEAD", "OPTIONS"].includes(req.method) || /^application\/json\b/i.test(req.get("content-type") || "") ? next() : bad(res, "Send JSON", 415);
 
 const publicUser = u => ({ id: u.id, email: u.email, name: u.name, role: u.role, mustChangePassword: !!u.must_change_password });
 

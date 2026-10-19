@@ -58,6 +58,8 @@ test("draft, approve, publish, learner quiz never leaks answers", async () => {
   await author(`/api/admin/questions/${full.questions[0].id}`, { method: "PATCH", body: { status: "approved" } });
   await author(`/api/admin/courses/${id}/publish`, { method: "POST", body: {} });
   assert.equal((await out(`/api/courses/${id}`)).status, 401);
+  assert.equal((await learner(`/api/courses/${id}`)).status, 404); // published but not enrolled
+  await author(`/api/admin/courses/${id}/enrolments`, { method: "POST", body: { emails: ["learner@example.com"] } });
   const view = (await learner(`/api/courses/${id}`)).body;
   assert.equal(view.questions.length, 1); // only the approved one
   assert.ok(!("answer" in view.questions[0]));
@@ -132,6 +134,50 @@ test("changing password needs the current one and ends other sessions", async ()
   assert.equal((await b("/api/auth/me")).status, 401); // the other session was ended
   const again = await s.parse(await s.raw("/api/auth/login", { method: "POST", body: { email: "learner@example.com", password: "a-new-long-password" } }));
   assert.equal(again.status, 200);
+});
+
+async function publishedCourse(s) {
+  const author = await s.as("author");
+  const { body: { id } } = await author("/api/admin/ai/draft-course", { method: "POST", body: { text: SOURCE } });
+  await author(`/api/admin/courses/${id}/publish`, { method: "POST", body: {} });
+  return { author, id };
+}
+
+test("enrolment: manual courses need staff to enrol; results report unknown emails; unenrol removes access", async () => {
+  const s = await start();
+  const { author, id } = await publishedCourse(s);
+  const learner = await s.as("learner");
+  assert.deepEqual((await learner("/api/courses")).body, []);
+  assert.equal((await learner(`/api/courses/${id}/enrol`, { method: "POST", body: {} })).status, 404); // manual, not open
+  assert.equal((await learner(`/api/admin/courses/${id}/enrolments`, { method: "POST", body: { emails: ["learner@example.com"] } })).status, 403);
+  const r = await author(`/api/admin/courses/${id}/enrolments`, { method: "POST", body: { emails: ["Learner@example.com", "learner@example.com", "ghost@example.com"] } });
+  assert.deepEqual(r.body, { enrolled: ["learner@example.com"], alreadyEnrolled: [], notFound: ["ghost@example.com"] });
+  assert.equal((await author(`/api/admin/courses/${id}/enrolments`, { method: "POST", body: { emails: ["learner@example.com"] } })).body.alreadyEnrolled.length, 1);
+  assert.equal((await learner("/api/courses")).body.length, 1);
+  assert.equal((await learner(`/api/courses/${id}`)).status, 200);
+  const list = (await author(`/api/admin/courses/${id}/enrolments`)).body;
+  assert.deepEqual(list.map(e => [e.email, e.self_enrolled]), [["learner@example.com", false]]);
+  const lid = list[0].id;
+  assert.equal((await author(`/api/admin/courses/${id}/enrolments/${lid}`, { method: "DELETE" })).status, 204);
+  assert.equal((await learner(`/api/courses/${id}`)).status, 404);
+  assert.equal((await learner(`/api/courses/${id}/quiz`, { method: "POST", body: { answers: {} } })).status, 404);
+  s.close();
+});
+
+test("open enrolment: learners can self-enrol and it is recorded as such; staff can preview without enrolling", async () => {
+  const s = await start();
+  const { author, id } = await publishedCourse(s);
+  const learner = await s.as("learner");
+  assert.equal((await author(`/api/admin/courses/${id}`, { method: "PATCH", body: { enrolment: "sometimes" } })).status, 400);
+  await author(`/api/admin/courses/${id}`, { method: "PATCH", body: { enrolment: "open", title: "Renamed" } });
+  assert.deepEqual((await learner("/api/courses/available")).body.map(c => c.title), ["Renamed"]);
+  assert.equal((await learner(`/api/courses/${id}/enrol`, { method: "POST", body: {} })).status, 201);
+  assert.deepEqual((await learner("/api/courses/available")).body, []);
+  assert.equal((await learner("/api/courses")).body.length, 1);
+  assert.equal((await author(`/api/admin/courses/${id}/enrolments`)).body[0].self_enrolled, true);
+  assert.equal((await author(`/api/courses/${id}`)).status, 200); // staff preview
+  assert.equal((await author(`/api/courses/${id}/quiz`, { method: "POST", body: { answers: {} } })).status, 403); // but not take the quiz
+  s.close();
 });
 
 test("tidyQuestions drops bad questions; cleanBody strips scripts", () => {

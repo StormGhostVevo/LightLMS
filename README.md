@@ -36,11 +36,19 @@ Writes to `/api/*` must be sent as `application/json` (part of the CSRF protecti
 - `POST /api/auth/login` `{ email, password }`, `POST /api/auth/logout`, `GET /api/auth/me`, `POST /api/auth/password` `{ current, next }`
 - `GET|POST /api/admin/users`, `PATCH /api/admin/users/:id` `{ role, active, name, resetPassword }` (admin only)
 
+Enrolment: a published course is only visible to people enrolled in it (authors and admins can preview any published
+course but can't take its quiz unless enrolled). A course is `manual` (staff enrol people) or `open` (anyone signed in
+can enrol themselves).
+
+- Learner: `GET /api/courses` (mine), `GET /api/courses/available` (open courses I haven't joined), `POST /api/courses/:id/enrol`
+- Staff: `PATCH /api/admin/courses/:id` `{ title, description, enrolment }`, `GET|POST /api/admin/courses/:id/enrolments`
+  (`{ emails: [...] }`, reports who was enrolled, already enrolled or not found), `DELETE /api/admin/courses/:id/enrolments/:userId`
+
 Authoring routes need the author or admin role:
 
 - `POST /api/admin/ai/draft-course` `{ text }` creates a draft course with lessons and draft questions
 - `POST /api/admin/courses/:id/quiz/generate` `{ count }` adds draft questions from the lessons
 - `PATCH /api/admin/questions/:id` edit or approve (`status: "approved"`); `DELETE` removes
 - `POST /api/admin/courses/:id/publish`
-- Signed-in users: `GET /api/courses`, `GET /api/courses/:id` published courses; only approved questions, no answers
+- Enrolled users: `GET /api/courses/:id` for a published course; only approved questions, no answers
 - `POST /api/courses/:id/quiz` `{ answers: { questionId: optionIndex } }` marked on the server
