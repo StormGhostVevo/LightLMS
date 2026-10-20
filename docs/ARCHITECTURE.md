@@ -16,8 +16,10 @@ server/
   http.js             now(), bad(), HttpError, the one error handler
   permissions.js      who may do what (capabilities), and the admin route table
   events.js, audit.js a small event bus, and the observer that writes the audit log
-  services/           the rules: courses, enrolment, question review, AI authoring
-  routes/             thin route files that call services: admin-courses.js, learner.js
+  logger.js           JSON logging with request ids and secret redaction
+  backup.js, backup-cli.js, privacy-cli.js   backups and restore; export and erase of a person
+  services/           the rules: courses, enrolment, question review, AI authoring, privacy
+  routes/             thin route files that call services: admin-courses.js, admin-backups.js, learner.js
   question-types/     one file per question type, behind a registry (index.js)
   auth.js             sign-in, sessions, users
   quiz.js, completion.js, certificates.js, editing.js, images.js, theme.js
@@ -108,7 +110,15 @@ the config test.
 
 `npm run check` runs formatting, lint, type checks and the tests, the same as CI.
 
+## Running it
+
+Logging, backups, restore, migrations, deployment and monitoring are in [deploy.md](deploy.md). Security is in
+[security-review.md](security-review.md) and accessibility in [accessibility.md](accessibility.md).
+
+Two rules worth knowing here: **a migration that has been applied is fixed** (the server checks a checksum and refuses to
+start if it changed), and **there is exactly one server process per database** (SQLite).
+
 ## What is not here yet
 
-Backups and restore, a Dockerfile and deploy path, structured logging, email, and a written security review. These are
-the next phase; see [review-and-roadmap.md](review-and-roadmap.md).
+Email, two-factor sign-in or single sign-on, per-course permissions, and content versions with history. The Docker image
+and a real hosting platform have not been tried. See [review-and-roadmap.md](review-and-roadmap.md).

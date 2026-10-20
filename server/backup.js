@@ -210,8 +210,7 @@ export function holdLock(dbPath) {
       /* already gone */
     }
   };
-  process.on("exit", release);
-  for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => (release(), process.exit(0)));
+  process.on("exit", release); // also covers a crash that ends in an exit; a hard kill leaves a stale lock, which restore ignores
   return release;
 }
 

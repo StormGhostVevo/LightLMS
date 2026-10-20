@@ -16,7 +16,7 @@ try {
 
 const log = createLogger({ level: config.logLevel });
 const db = openDb(config.dbPath, { backupDir: config.backupDir, log });
-holdLock(config.dbPath);
+const releaseLock = holdLock(config.dbPath);
 const app = createApp({ db, config, ai: makeAi(config), log });
 
 // Sessions are removed when they are used after expiring, but most are simply abandoned, so sweep them out regularly.
@@ -27,8 +27,9 @@ const sweep = () => {
 sweep();
 setInterval(sweep, 60 * 60 * 1000).unref();
 
+let schedule = null;
 if (config.backupEveryHours > 0)
-  startBackupSchedule({
+  schedule = startBackupSchedule({
     db,
     dir: config.backupDir,
     everyHours: config.backupEveryHours,
@@ -37,10 +38,35 @@ if (config.backupEveryHours > 0)
   });
 else log.warn("scheduled backups are switched off");
 
-app.listen(config.port, () =>
+const server = app.listen(config.port, () =>
   log.info("listening", {
     port: config.port,
     ai: config.ai.provider,
     env: config.prod ? "production" : "development",
   }),
 );
+
+// A platform stops a container with SIGTERM. Stop taking new requests, let the ones in flight finish (up to 10 seconds),
+// then close the database so its journal is merged into the main file, and release the lock.
+let stopping = false;
+const shutdown = signal => {
+  if (stopping) return;
+  stopping = true;
+  log.info("shutting down", { signal });
+  schedule?.stop();
+  const force = setTimeout(() => {
+    log.warn("shutdown took too long; forcing exit");
+    db.close();
+    releaseLock();
+    process.exit(1);
+  }, 10_000);
+  force.unref();
+  server.close(() => {
+    db.close();
+    releaseLock();
+    log.info("stopped");
+    process.exit(0);
+  });
+  server.closeIdleConnections();
+};
+for (const signal of ["SIGTERM", "SIGINT"]) process.on(signal, () => shutdown(signal));

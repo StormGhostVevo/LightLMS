@@ -514,3 +514,72 @@ test("browser: the backups page shows what exists, makes a backup on request, an
     s.close();
   }
 });
+
+// ---------------- the real process ----------------
+import { spawn } from "node:child_process";
+import { createServer } from "node:net";
+
+/** Asks the system for a port nobody is using. */
+const freePort = () =>
+  new Promise(resolve => {
+    const probe = createServer().listen(0, () => {
+      const { port } = /** @type {import("node:net").AddressInfo} */ (probe.address());
+      probe.close(() => resolve(port));
+    });
+  });
+
+test("the real server: starts, makes its first backup, answers health checks, and shuts down cleanly on SIGTERM", async () => {
+  const dir = tmp();
+  const port = await freePort();
+  const env = {
+    ...process.env,
+    NODE_ENV: "production",
+    PORT: String(port),
+    DATABASE_PATH: join(dir, "data", "lightlms.sqlite"),
+    TRUST_PROXY: "0",
+    LOG_LEVEL: "info",
+  };
+  const child = spawn(process.execPath, ["server/index.js"], { env, stdio: ["ignore", "pipe", "pipe"] });
+  let out = "";
+  child.stdout.on("data", d => (out += d));
+  child.stderr.on("data", d => (out += d));
+  const exited = new Promise(resolve => child.on("exit", (code, signal) => resolve({ code, signal })));
+  try {
+    const health = await (async () => {
+      for (let i = 0; i < 100; i++) {
+        try {
+          const r = await fetch(`http://127.0.0.1:${port}/health`);
+          if (r.ok) return r.json();
+        } catch {
+          /* not up yet */
+        }
+        await new Promise(r => setTimeout(r, 50));
+      }
+      throw new Error(`the server never came up:\n${out}`);
+    })();
+    assert.deepEqual([health.ok, health.schema], [true, "010_audit_log.sql"]);
+    assert.equal(readFileSync(`${env.DATABASE_PATH}.lock`, "utf8"), String(child.pid)); // the lock names this process
+    for (let i = 0; i < 100 && !out.includes("backup made"); i++) await new Promise(r => setTimeout(r, 50));
+    assert.match(out, /"msg":"backup made"/);
+    assert.equal(listBackups(join(dir, "data", "backups")).length, 1);
+    assert.match(out, /"env":"production"/);
+
+    child.kill("SIGTERM");
+    const { code } = await exited;
+    assert.equal(code, 0, out);
+    assert.match(out, /"msg":"shutting down"/);
+    assert.match(out, /"msg":"stopped"/);
+    assert.ok(!existsSync(`${env.DATABASE_PATH}.lock`), "the lock is released");
+    assert.ok(
+      !existsSync(`${env.DATABASE_PATH}-wal`) || readFileSync(`${env.DATABASE_PATH}-wal`).length === 0,
+      "the journal was merged into the database",
+    );
+    await restoreBackup({
+      file: "latest",
+      dbPath: env.DATABASE_PATH,
+      backupDir: join(dir, "data", "backups"),
+    }); // and it can be restored now it has stopped
+  } finally {
+    child.kill("SIGKILL");
+  }
+});

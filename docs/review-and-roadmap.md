@@ -157,3 +157,19 @@ live (8), nothing verified against the real AI or an accessibility audit (9), no
 
 **Next: Phase B, launch readiness.** Backups and a tested restore, Dockerfile and deploy notes, structured logging,
 migration checksums, a written security review, an accessibility pass, and running the CI workflow on GitHub for the first time.
+
+## 8. Phase B status (launch readiness), 20/10/2026
+
+| Item | Result |
+|---|---|
+| Backups and a tested restore | Done. Scheduled, verified, compressed, with retention; command line and admin page; restore refuses to run while the server is up and keeps a safety copy; the drill is automated (data, images and certificates compared after a restore) |
+| Dockerfile and deploy notes | Written. [deploy.md](deploy.md) covers settings, first deploy, backups, restore, updates, rollback, monitoring, privacy and a go-live checklist. **The image itself has not been built** (Docker isn't installed here); a production-only install and start-up were simulated instead |
+| Structured logging | Done. JSON lines, request ids, secrets and personal data never logged, error references shown to people |
+| Migration checksums | Done, plus a backup before any migration on a database that holds data |
+| Security review | Done as an internal review: [security-review.md](security-review.md). Fixed a set of findings (origin check, per-account sign-in limit, strict CSP, password strength, and more). **Not a penetration test** |
+| Accessibility pass | Done for what can be automated (axe-core on every screen, label-in-name, palette contrast, full-shell test) and fixed what it found. [accessibility.md](accessibility.md) lists what still needs a person: a real screen reader, keyboard use in a real browser, zoom |
+| Privacy tools (added) | Export and erase a person, with the audit log scrubbed |
+| CI on GitHub | The workflow exists but has not been seen running there |
+
+**Next:** run CI on GitHub, deploy to a real test environment and do the restore drill and the go-live checklist, get an
+independent security test, then decide on two-factor or single sign-on, email, and per-course permissions.

@@ -1,0 +1,17 @@
+.git
+.github
+.claude
+.env
+.env.*
+node_modules
+data
+docs
+*.md
+server/test
+types
+eslint.config.js
+tsconfig*.json
+.prettier*
+.editorconfig
+Dockerfile
+.dockerignore
