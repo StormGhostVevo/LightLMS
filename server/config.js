@@ -1,3 +1,4 @@
+import { dirname, join } from "node:path";
 import { z } from "zod";
 
 const validZone = zone => {
@@ -25,6 +26,11 @@ const schema = z.object({
   AI_MODEL: z.string().min(1).default("claude-sonnet-5-5"),
   // How many proxies sit in front of the server (Railway and most hosts: 1). It decides which address counts as the
   // visitor's, so rate limits apply per person and not to everyone behind the proxy at once.
+  // Where backups go (default: a "backups" folder beside the database), how many ordinary ones to keep,
+  // and how often to make one. 0 hours turns the schedule off.
+  BACKUP_DIR: z.string().optional(),
+  BACKUP_KEEP: z.coerce.number().int().min(1).max(365).default(14),
+  BACKUP_EVERY_HOURS: z.coerce.number().min(0).max(720).default(24),
   LOG_LEVEL: z.enum(["silent", "error", "warn", "info", "debug"]).default("info"),
   TRUST_PROXY: z.coerce.number().int().min(0).max(5).optional(),
 });
@@ -53,6 +59,9 @@ export function loadConfig(overrides = {}, env = process.env) {
     dbPath: e.DATABASE_PATH,
     trustProxy: e.TRUST_PROXY ?? (prod ? 1 : 0),
     logLevel: e.LOG_LEVEL,
+    backupDir: e.BACKUP_DIR ?? join(dirname(e.DATABASE_PATH), "backups"),
+    backupKeep: e.BACKUP_KEEP,
+    backupEveryHours: e.BACKUP_EVERY_HOURS,
     ai: { provider, apiKey: e.ANTHROPIC_API_KEY, model: e.AI_MODEL },
     ...overrides,
   };

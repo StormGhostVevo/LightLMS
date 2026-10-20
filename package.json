@@ -17,7 +17,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc -p tsconfig.server.json && tsc -p tsconfig.client.json",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm test"
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
+    "backup": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server/backup-cli.js backup",
+    "backups": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server/backup-cli.js backups",
+    "verify-backup": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server/backup-cli.js verify-backup",
+    "restore": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server/backup-cli.js restore"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.134.0",
