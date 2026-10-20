@@ -8,7 +8,7 @@
     "noEmit": true,
     "skipLibCheck": true,
     "strict": false,
-    "lib": ["ES2023"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["node"]
   },
   "include": ["server/**/*.js", "types/**/*.d.ts", "eslint.config.js"]
