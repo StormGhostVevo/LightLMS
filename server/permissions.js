@@ -6,6 +6,7 @@ import { bad } from "./http.js";
  *
  * Learners need no capability: they sign in, and see a course only if they are enrolled in it.
  */
+/** @type {Record<string, { roles: string[], does: string }>} */
 export const GRANTS = {
   "course:author": {
     roles: ["author", "admin"],
@@ -22,7 +23,7 @@ export const GRANTS = {
 
 /**
  * @param {{ role: string } | null | undefined} user
- * @param {keyof typeof GRANTS} capability
+ * @param {string} capability a key of GRANTS
  * @param {{ courseId?: number }} [_resource] unused today; here so a per-course role can be added without touching callers
  */
 export function can(user, capability, _resource) {
@@ -39,6 +40,7 @@ export const requireCapability = capability => (req, res, next) =>
 
 // Every route under /api/admin must be listed here. A route with no entry is refused, so forgetting is safe, not open.
 // Paths are relative to /api/admin. `*` matches any method.
+/** @type {[method: string, path: RegExp, capability: string][]} */
 export const ADMIN_ROUTES = [
   ["*", /^\/ai\/(status|draft-course)$/, "course:author"],
   ["*", /^\/courses$/, "course:author"],
