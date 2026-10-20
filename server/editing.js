@@ -24,6 +24,7 @@ export function mountEditing({ admin, db, course, touch, evaluateEveryone, event
 
   // Reorders by id: the list must be exactly the current set, so nothing is dropped or invented by accident.
   const reorder = (table, courseId, order, res) => {
+    if (!["lessons", "questions"].includes(table)) throw new Error(`Cannot reorder ${table}`); // table names are built into the SQL
     const current = db.prepare(`SELECT id FROM ${table} WHERE course_id = ?`).pluck().all(courseId);
     if (
       !Array.isArray(order) ||

@@ -1,11 +1,20 @@
 import { readFileSync } from "node:fs";
 import express from "express";
 import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
 import { errorHandler } from "./http.js";
 import { createLogger, requestLogger } from "./logger.js";
 import { createEvents } from "./events.js";
 import { registerAudit, mountAudit } from "./audit.js";
-import { authRouter, usersRouter, sessionMiddleware, requireLogin, jsonOnly } from "./auth.js";
+import {
+  authRouter,
+  usersRouter,
+  sessionMiddleware,
+  requireLogin,
+  jsonOnly,
+  sameOrigin,
+  createLoginThrottle,
+} from "./auth.js";
 import { requireCapability, adminGuard } from "./permissions.js";
 import { createCourses } from "./services/courses.js";
 import { createEnrolment } from "./services/enrolment.js";
@@ -24,9 +33,15 @@ import { mountCertificates } from "./certificates.js";
 /**
  * Builds the whole server. This file only wires things together; the rules live in the services, the routes
  * in the route files, and who may do what in permissions.js.
- * @param {{ db: import("better-sqlite3").Database, config: any, ai: any, log?: import("./logger.js").Logger }} deps
+ * @param {{ db: import("better-sqlite3").Database, config: any, ai: any, log?: import("./logger.js").Logger, loginThrottle?: ReturnType<typeof createLoginThrottle> }} deps
  */
-export function createApp({ db, config, ai, log = createLogger({ level: config.logLevel ?? "silent" }) }) {
+export function createApp({
+  db,
+  config,
+  ai,
+  log = createLogger({ level: config.logLevel ?? "silent" }),
+  loginThrottle = createLoginThrottle(),
+}) {
   // ---- things the routes share ----
   const events = createEvents({ log });
   registerAudit({ db, events });
@@ -39,7 +54,34 @@ export function createApp({ db, config, ai, log = createLogger({ level: config.l
   const app = express();
   app.set("trust proxy", config.trustProxy ?? 0); // see TRUST_PROXY in config.js
   app.use(requestLogger(log));
-  app.use(helmet());
+  app.use(
+    helmet({
+      // Everything comes from this site. No inline scripts, no inline styles, no framing, nothing from elsewhere.
+      contentSecurityPolicy: {
+        useDefaults: false,
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          scriptSrcAttr: ["'none'"],
+          styleSrc: ["'self'"],
+          styleSrcAttr: ["'none'"],
+          imgSrc: ["'self'"],
+          fontSrc: ["'self'"],
+          connectSrc: ["'self'"],
+          mediaSrc: ["'none'"],
+          objectSrc: ["'none'"],
+          workerSrc: ["'none'"],
+          manifestSrc: ["'self'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+          frameAncestors: ["'none'"],
+          ...(config.prod ? { upgradeInsecureRequests: [] } : {}),
+        },
+      },
+      crossOriginResourcePolicy: { policy: "same-origin" },
+      referrerPolicy: { policy: "no-referrer" },
+    }),
+  );
   // JSON bodies are small, except a cover image upload (base64 of up to 2 MB).
   const smallJson = express.json({ limit: "200kb" });
   const imageJson = express.json({ limit: "3.5mb" });
@@ -62,14 +104,26 @@ export function createApp({ db, config, ai, log = createLogger({ level: config.l
       res.status(503).json({ ok: false });
     }
   });
-  app.use("/api", jsonOnly, sessionMiddleware(db));
+  // A ceiling on how fast one visitor can use the API, so a runaway script or an attack can't swamp the site.
+  const apiLimit = rateLimit({
+    windowMs: 60_000,
+    limit: 600,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many requests. Slow down and try again in a minute." },
+  });
+  app.use("/api", apiLimit, (req, res, next) => {
+    res.set("Cache-Control", "no-store"); // answers hold personal data: nothing should keep a copy
+    next();
+  });
+  app.use("/api", jsonOnly, sameOrigin, sessionMiddleware(db));
   // Someone on a temporary password can only use the sign-in and password routes until they choose their own.
   app.use("/api", (req, res, next) =>
     req.user?.must_change_password && !req.path.startsWith("/auth/")
       ? res.status(403).json({ error: "Choose a new password first", mustChangePassword: true })
       : next(),
   );
-  app.use("/api/auth", authRouter({ db, config, events }));
+  app.use("/api/auth", authRouter({ db, config, events, throttle: loginThrottle }));
 
   // ---- staff (everything under /api/admin goes through adminGuard, which checks permissions.js) ----
   const admin = express.Router();
@@ -99,6 +153,12 @@ export function createApp({ db, config, ai, log = createLogger({ level: config.l
 
   app.use("/api/admin", admin);
   app.use("/", express.static(new URL("../public", import.meta.url).pathname));
+  // Anything that matched nothing. A short fixed answer: it doesn't repeat the address back or name the framework.
+  app.use((req, res) =>
+    req.path.startsWith("/api")
+      ? res.status(404).json({ error: "Not found" })
+      : res.status(404).type("text").send("Not found"),
+  );
   app.use(errorHandler(log));
   app.locals.adminRouter = admin; // lets the tests check that every admin route has a listed capability
   return app;

@@ -212,11 +212,5 @@ function page(r, config, fmt) {
        <p class="small code">Certificate ID ${esc(r.code)}</p>`;
   return `<!doctype html><html lang="en-AU"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex"><title>${r ? "Certificate: " + esc(r.course_title) : "Certificate not found"}</title>
-<style>
-body{font-family:Georgia,serif;margin:0;padding:24px;background:#f4f1ea;color:#222;display:flex;justify-content:center}
-main{background:#fff;border:6px double #b08d3c;max-width:720px;width:100%;box-sizing:border-box;padding:48px 32px;text-align:center}
-h1{font-size:2rem;margin:.4em 0 1em}.name{font-size:2rem;margin:.2em 0;font-style:italic}.course{font-size:1.5rem;font-weight:bold;margin:.2em 0 1.5em}
-.small{color:#555;font-size:.95rem}.code{font-family:monospace;letter-spacing:.05em}.banner{background:#fde8e8;color:#8a1c1c;padding:10px;font-family:sans-serif}
-@media print{body{background:#fff;padding:0}}
-</style></head><body><main>${body}</main></body></html>`;
+<link rel="stylesheet" href="/css/certificate.css"></head><body><main>${body}</main></body></html>`;
 }

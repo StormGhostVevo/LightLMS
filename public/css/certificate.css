@@ -1,0 +1,53 @@
+/* The printable certificate page. Kept in a file, not inline, so the site's content security policy can forbid inline styles. */
+body {
+  font-family: Georgia, serif;
+  margin: 0;
+  padding: 24px;
+  background: #f4f1ea;
+  color: #222;
+  display: flex;
+  justify-content: center;
+}
+main {
+  background: #fff;
+  border: 6px double #b08d3c;
+  max-width: 720px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 48px 32px;
+  text-align: center;
+}
+h1 {
+  font-size: 2rem;
+  margin: 0.4em 0 1em;
+}
+.name {
+  font-size: 2rem;
+  margin: 0.2em 0;
+  font-style: italic;
+}
+.course {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin: 0.2em 0 1.5em;
+}
+.small {
+  color: #555;
+  font-size: 0.95rem;
+}
+.code {
+  font-family: monospace;
+  letter-spacing: 0.05em;
+}
+.banner {
+  background: #fde8e8;
+  color: #8a1c1c;
+  padding: 10px;
+  font-family: sans-serif;
+}
+@media print {
+  body {
+    background: #fff;
+    padding: 0;
+  }
+}

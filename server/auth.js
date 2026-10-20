@@ -87,6 +87,67 @@ export function sessionMiddleware(db) {
 
 export const requireLogin = (req, res, next) => (req.user ? next() : bad(res, "Please sign in", 401));
 
+// A browser tells us which site a request came from. If a page on another site makes the browser send a change to
+// this one, the Origin won't match, so refuse it. Requests with no Origin (scripts, curl, same-site navigation) pass.
+export const sameOrigin = (req, res, next) => {
+  const origin = req.get("origin");
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method) || !origin) return next();
+  try {
+    if (new URL(origin).host === req.host) return next();
+  } catch {
+    /* "null" and other junk fall through to the refusal */
+  }
+  return bad(res, "That request came from another site.", 403);
+};
+
+/**
+ * Counts failed sign-ins per account, across every address, so guesses spread over many machines still run out.
+ * After `limit` failures the account refuses sign-in until the window passes (even with the right password: an
+ * attacker can slow someone down, but can't get in). A success clears the count. Unknown emails count too, so the
+ * response never reveals which accounts exist. Kept in memory: a restart forgives, which is acceptable.
+ */
+export function createLoginThrottle({ limit = 10, windowMs = 15 * 60_000, clock = Date.now } = {}) {
+  /** @type {Map<string, { count: number, since: number }>} */
+  const seen = new Map();
+  const live = key => {
+    const e = seen.get(key);
+    if (e && clock() - e.since > windowMs) {
+      seen.delete(key);
+      return undefined;
+    }
+    return e;
+  };
+  return {
+    locked: key => (live(key)?.count ?? 0) >= limit,
+    fail(key) {
+      const e = live(key);
+      if (e) e.count++;
+      else seen.set(key, { count: 1, since: clock() });
+      while (seen.size > 50_000) seen.delete(/** @type {string} */ (seen.keys().next().value)); // bounded memory
+    },
+    clear: key => seen.delete(key),
+  };
+}
+
+// A few of the passwords people choose most that are long enough to pass the length rule.
+const COMMON = new Set(
+  `password12 password123 password1234 1234567890 12345678910 qwertyuiop qwerty1234 qwerty12345 1q2w3e4r5t letmein123
+   welcome123 welcome1234 admin12345 administrator changeme123 iloveyou123 abcdefghij abcd123456 0123456789 1111111111
+   0000000000 passw0rd12 p@ssword12 trustno1234 superman123 football123 monkey1234 dragon1234 sunshine123 princess123`.split(
+    /\s+/,
+  ),
+);
+
+/** Returns why a new password is too weak, or null. Length is checked separately. */
+export function weakPassword(password, email = "") {
+  const p = password.toLowerCase();
+  const local = email.split("@")[0].toLowerCase();
+  if (COMMON.has(p) || /^(.)\1+$/.test(p) || p.startsWith("password"))
+    return "That password is too easy to guess. Use something longer or less common.";
+  if (local.length >= 4 && p.includes(local)) return "Your password shouldn't contain your email address.";
+  return null;
+}
+
 // Cross-site form posts can't set a JSON content type, so requiring it on writes blocks CSRF alongside SameSite=Lax.
 export const jsonOnly = (req, res, next) =>
   ["GET", "HEAD", "OPTIONS"].includes(req.method) ||
@@ -102,7 +163,7 @@ const publicUser = u => ({
   mustChangePassword: !!u.must_change_password,
 });
 
-export function authRouter({ db, config, events }) {
+export function authRouter({ db, config, events, throttle = createLoginThrottle() }) {
   const r = express.Router();
   const cookieOpts = { secure: config.prod };
   const loginLimit = rateLimit({
@@ -117,9 +178,15 @@ export function authRouter({ db, config, events }) {
     const { email, password } = req.body || {};
     if (typeof email !== "string" || typeof password !== "string")
       return bad(res, "Email and password are required");
+    const key = email.trim().toLowerCase();
+    if (throttle.locked(key)) return bad(res, "Too many sign-in attempts. Try again in a few minutes.", 429);
     const u = db.prepare("SELECT * FROM users WHERE email = ?").get(email.trim());
     const ok = await verifyPassword(password, u ? u.password_hash : DUMMY_HASH);
-    if (!u || !ok || !u.active) return bad(res, "Wrong email or password", 401);
+    if (!u || !ok || !u.active) {
+      throttle.fail(key);
+      return bad(res, "Wrong email or password", 401);
+    }
+    throttle.clear(key);
     db.prepare("UPDATE users SET last_login_at = ? WHERE id = ?").run(now(), u.id);
     setCookie(res, createSession(db, u.id), { ...cookieOpts, maxAge: SESSION_MS / 1000 });
     res.json(publicUser(u));
@@ -149,6 +216,8 @@ export function authRouter({ db, config, events }) {
       return bad(res, "Send the current and new password");
     if (pw.length < MIN_PASSWORD)
       return bad(res, `The new password needs at least ${MIN_PASSWORD} characters`);
+    const weak = weakPassword(pw, req.user.email);
+    if (weak) return bad(res, weak);
     const u = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
     if (!(await verifyPassword(current, u.password_hash)))
       return bad(res, "The current password is wrong", 401);

@@ -183,11 +183,13 @@ test("proxy: with one trusted proxy the rate limit counts each visitor separatel
     track(server);
     const { port } = /** @type {import("node:net").AddressInfo} */ (server.address());
     const url = `http://localhost:${port}/api/auth/login`;
+    // A different email each time, so this tests the limit per visitor (the per-account limit is tested separately).
+    let n = 0;
     const attempt = ip =>
       fetch(url, {
         method: "POST",
         headers: { "content-type": "application/json", "x-forwarded-for": ip },
-        body: JSON.stringify({ email: "a@b.co", password: "x" }),
+        body: JSON.stringify({ email: `person${n++}@b.co`, password: "x" }),
       }).then(r => r.status);
     for (let i = 0; i < 10; i++) await attempt("203.0.113.1"); // one visitor uses up their ten attempts
     return { sameVisitor: await attempt("203.0.113.1"), otherVisitor: await attempt("203.0.113.2") };
