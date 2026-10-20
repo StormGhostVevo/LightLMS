@@ -363,6 +363,108 @@ test("gradebook shows completion for staff, and the CSV has a Completed column",
   s.close();
 });
 
+test("authoring: build a course from scratch with lessons and questions, then publish it", async () => {
+  const s = await start();
+  const author = await s.as("author"), learner = await s.as("learner");
+  assert.equal((await learner("/api/admin/courses", { method: "POST", body: { title: "No" } })).status, 403);
+  assert.equal((await author("/api/admin/courses", { method: "POST", body: { title: "  " } })).status, 400);
+  const { body: { id } } = await author("/api/admin/courses", { method: "POST", body: { title: "<b>Handling complaints</b>", description: "How we respond" } });
+  assert.equal((await author(`/api/admin/courses/${id}/publish`, { method: "POST", body: {} })).status, 400);   // no lessons yet
+
+  const l1 = await author(`/api/admin/courses/${id}/lessons`, { method: "POST", body: { title: "Listen first", body: '<p>Hi</p><script>alert(1)</script>' } });
+  assert.equal(l1.status, 201);
+  assert.ok(!l1.body.body.includes("script"));                                                                         // sanitised
+  assert.equal((await author(`/api/admin/courses/${id}/lessons`, { method: "POST", body: { title: "", body: "<p>x</p>" } })).status, 400);
+  assert.equal((await author(`/api/admin/courses/${id}/lessons`, { method: "POST", body: { title: "Empty", body: "<script>x</script>" } })).status, 400);
+  const l2 = await author(`/api/admin/courses/${id}/lessons`, { method: "POST", body: { title: "Then respond", body: "<p>Reply</p>" } });
+  assert.deepEqual([l1.body.position, l2.body.position], [0, 1]);
+
+  const q = await author(`/api/admin/courses/${id}/questions`, { method: "POST", body: { prompt: "First step?", options: ["Listen", "Argue"], answer: 0, explanation: "Hear them out." } });
+  assert.equal(q.status, 201);
+  assert.deepEqual([q.body.source, q.body.status], ["manual", "approved"]);
+  assert.equal((await author(`/api/admin/courses/${id}/questions`, { method: "POST", body: { prompt: "Bad", options: ["a", "b"], answer: 7 } })).status, 400);
+  assert.equal((await author(`/api/admin/courses/${id}/questions`, { method: "POST", body: { prompt: "Bad", options: ["a", "a"], answer: 0 } })).status, 400);
+
+  assert.equal((await author(`/api/admin/courses/${id}/publish`, { method: "POST", body: {} })).status, 200);
+  const full = (await author(`/api/admin/courses/${id}`)).body;
+  assert.deepEqual([full.title, full.lessons.length, full.questions.length], ["Handling complaints", 2, 1]);
+  s.close();
+});
+
+test("authoring: edit lessons, reorder lessons and questions (exact set only), delete closes position gaps", async () => {
+  const s = await start();
+  const { author, id } = await quizCourse(s);
+  addLessons(s, id, 2);
+  let lessons = (await author(`/api/admin/courses/${id}`)).body.lessons;
+  const [a, b, c] = lessons.map(l => l.id);
+  const edited = await author(`/api/admin/lessons/${a}`, { method: "PATCH", body: { title: "Renamed" } });
+  assert.deepEqual([edited.status, edited.body.title, edited.body.body.length > 0], [200, "Renamed", true]);   // body kept when not sent
+  assert.equal((await author(`/api/admin/lessons/${a}`, { method: "PATCH", body: { title: "" } })).status, 400);
+
+  for (const order of [[a, b], [a, b, b], [a, b, 9999], "nope"])
+    assert.equal((await author(`/api/admin/courses/${id}/lessons/order`, { method: "PUT", body: { order } })).status, 400, JSON.stringify(order));
+  assert.equal((await author(`/api/admin/courses/${id}/lessons/order`, { method: "PUT", body: { order: [c, a, b] } })).status, 200);
+  assert.deepEqual((await author(`/api/admin/courses/${id}`)).body.lessons.map(l => l.id), [c, a, b]);
+
+  assert.equal((await author(`/api/admin/lessons/${a}`, { method: "DELETE" })).status, 204);
+  assert.deepEqual((await author(`/api/admin/courses/${id}`)).body.lessons.map(l => [l.id, l.position]), [[c, 0], [b, 1]]);
+
+  const qs = (await author(`/api/admin/courses/${id}`)).body.questions.map(q => q.id);
+  assert.equal((await author(`/api/admin/courses/${id}/questions/order`, { method: "PUT", body: { order: [...qs].reverse() } })).status, 200);
+  assert.deepEqual((await author(`/api/admin/courses/${id}`)).body.questions.map(q => q.id), [...qs].reverse());
+  s.close();
+});
+
+test("authoring: a published course keeps at least one lesson; deleting a lesson re-checks completion and drops ticks, not completions", async () => {
+  const s = await start();
+  const { author, id, answers } = await quizCourse(s);
+  addLessons(s, id, 1);                                                              // two lessons
+  const learner = await s.as("learner");
+  const [l1, l2] = await lessonIds(learner, id);
+  await learner(`/api/courses/${id}/lessons/${l1}/complete`, { method: "POST", body: {} });
+  await learner(`/api/courses/${id}/quiz`, { method: "POST", body: { answers: answers(0) } });
+  assert.equal((await learner(`/api/courses/${id}/progress`)).body.completed, false);   // lesson 2 outstanding
+
+  await author(`/api/admin/lessons/${l2}`, { method: "DELETE" });                    // the only thing missing is gone
+  assert.equal((await learner(`/api/courses/${id}/progress`)).body.completed, true);
+  assert.equal((await author(`/api/admin/lessons/${l1}`, { method: "DELETE" })).status, 409);   // last lesson of a published course
+  s.close();
+});
+
+test("authoring: changing questions re-checks completion; editing a question never rewrites an old attempt", async () => {
+  const s = await start();
+  const { author, id, qids, answers } = await quizCourse(s, { completion: "both" });
+  const learner = await s.as("learner");
+  const [l1] = await lessonIds(learner, id);
+  await learner(`/api/courses/${id}/lessons/${l1}/complete`, { method: "POST", body: {} });
+  const attempt = await learner(`/api/courses/${id}/quiz`, { method: "POST", body: { answers: answers(1) } });   // fails
+  assert.equal((await learner(`/api/courses/${id}/progress`)).body.completed, false);
+  await author(`/api/admin/questions/${qids[0]}`, { method: "PATCH", body: { prompt: "Completely different question?" } });
+  const old = (await learner(`/api/attempts/${attempt.body.id}`)).body;
+  assert.match(old.results[0].prompt, /Placeholder/);                                // snapshot, not the edited text
+
+  for (const qid of qids) await author(`/api/admin/questions/${qid}`, { method: "DELETE" });   // no quiz left, lessons done
+  assert.equal((await learner(`/api/courses/${id}/progress`)).body.completed, true);
+  s.close();
+});
+
+test("authoring: only drafts can be deleted; unpublish hides the course but keeps enrolments and attempts", async () => {
+  const s = await start();
+  const { author, id, answers } = await quizCourse(s);
+  const learner = await s.as("learner");
+  await learner(`/api/courses/${id}/quiz`, { method: "POST", body: { answers: answers(0) } });
+  assert.equal((await author(`/api/admin/courses/${id}`, { method: "DELETE" })).status, 409);       // published
+  await author(`/api/admin/courses/${id}/unpublish`, { method: "POST", body: {} });
+  assert.equal((await learner(`/api/courses/${id}`)).status, 404);
+  assert.equal((await author(`/api/admin/courses/${id}/enrolments`)).body.length, 1);               // kept
+  await author(`/api/admin/courses/${id}/publish`, { method: "POST", body: {} });
+  assert.equal((await learner(`/api/courses/${id}/attempts`)).body.attemptsUsed, 1);                // kept
+  await author(`/api/admin/courses/${id}/unpublish`, { method: "POST", body: {} });
+  assert.equal((await author(`/api/admin/courses/${id}`, { method: "DELETE" })).status, 204);
+  assert.equal((await author(`/api/admin/courses/${id}`)).status, 404);
+  s.close();
+});
+
 test("tidyQuestions drops bad questions; cleanBody strips scripts", () => {
   const flags = [];
   const out = tidyQuestions([

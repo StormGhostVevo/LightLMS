@@ -2,6 +2,7 @@ import express from "express";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { authRouter, usersRouter, sessionMiddleware, requireLogin, requireRole, jsonOnly } from "./auth.js";
+import { mountEditing } from "./editing.js";
 import { mountQuiz } from "./quiz.js";
 import { mountCompletion, evaluateEveryone, evaluate, progress } from "./completion.js";
 import { AiError, MIN_SOURCE, MAX_SOURCE, tidyDraft, tidyQuestions, plain } from "./ai.js";
@@ -96,6 +97,7 @@ export function createApp({ db, config, ai }) {
     db.prepare("UPDATE questions SET prompt = ?, options = ?, answer = ?, explanation = ?, status = ? WHERE id = ?")
       .run(fixed.prompt, JSON.stringify(fixed.options), fixed.answer, fixed.explanation, status, q.id);
     touch(q.course_id);
+    evaluateEveryone(db, course(q.course_id));   // approving or unapproving changes whether the course has a quiz
     res.json(toQuestion(db.prepare("SELECT * FROM questions WHERE id = ?").get(q.id)));
   });
 
@@ -104,6 +106,7 @@ export function createApp({ db, config, ai }) {
     if (!q) return bad(res, "Question not found", 404);
     db.prepare("DELETE FROM questions WHERE id = ?").run(req.params.id);
     touch(q.course_id);
+    evaluateEveryone(db, course(q.course_id));
     res.status(204).end();
   });
 
@@ -171,6 +174,7 @@ export function createApp({ db, config, ai }) {
     res.json({ id: c.id, status: "published" });
   });
 
+  mountEditing({ admin, db, course, touch, evaluateEveryone });
   app.use("/api/admin/users", requireRole("admin"), usersRouter({ db }));
   app.use("/api/admin", admin);
 

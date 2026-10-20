@@ -8,8 +8,8 @@ Status: **done** (in the repo), **next** (planned first), **later**, **skip** (d
 
 | Moodle area | What it does | lightlms approach | Status |
 |---|---|---|---|
-| Courses | Container for learning content | `courses` table, draft/published | done |
-| Resources: Page / Book | Rich-text content, chaptered | `lessons` (sanitised HTML), ordered | done |
+| Courses | Container for learning content | `courses` table; create, edit, publish, unpublish, delete drafts | done |
+| Resources: Page / Book | Rich-text content, chaptered | `lessons` (sanitised HTML); add, edit, delete, reorder | done |
 | Quiz: multiple choice | Auto-marked questions | `questions`, marked server-side, answers never sent to learners | done |
 | Question bank | Reusable questions | Questions are per course for now; a shared bank with tags later | later |
 | Quiz: other types | True/false, short answer, matching, numeric | Add `kind` column; true/false and short answer first | next |

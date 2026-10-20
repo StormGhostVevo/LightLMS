@@ -64,6 +64,18 @@ nothing to require never completes.
 - Learner: `GET /api/courses/:id/progress`, `POST|DELETE /api/courses/:id/lessons/:lessonId/complete`; `GET /api/courses` now includes `percent` and `completed`
 - Staff: `PATCH /api/admin/courses/:id` takes `completion`; the gradebook shows lessons done and completion per learner
 
+Authoring (authors and admins). Edits to a published course are live immediately; there is no separate draft of a published course.
+
+- Courses: `POST /api/admin/courses` `{ title, description }` (blank course), `POST .../:id/unpublish`, `DELETE .../:id` (drafts only, since it removes attempts and completions; unpublish first)
+- Lessons: `POST /api/admin/courses/:id/lessons` `{ title, body }` (HTML is sanitised), `PATCH|DELETE /api/admin/lessons/:id`,
+  `PUT /api/admin/courses/:id/lessons/order` `{ order: [ids] }`. A published course can't lose its last lesson.
+- Questions: `POST /api/admin/courses/:id/questions` `{ prompt, options, answer, explanation, status }` (approved by default, since a person wrote it),
+  `PATCH|DELETE /api/admin/questions/:id`, `PUT /api/admin/courses/:id/questions/order`
+- Changing lessons or questions re-checks completion, so someone isn't stuck behind a requirement that no longer exists.
+  Completions already earned and attempts already taken are never altered; an attempt keeps the question text it was taken with.
+- Limits: 100 lessons and 200 questions per course. The gradebook's "most missed questions" groups by question id, so
+  after you substantially rewrite a question its old attempts still count towards it.
+
 Authoring routes need the author or admin role:
 
 - `POST /api/admin/ai/draft-course` `{ text }` creates a draft course with lessons and draft questions
