@@ -1,5 +1,5 @@
 import { api } from "../../api.js";
-import { h, notice, field, guarded, btn } from "../../dom.js";
+import { h, notice, field, guarded, btn, put, add } from "../../dom.js";
 import { prepareImage } from "../../image.js";
 
 export function detailsTab(body, { id, course, reload }) {
@@ -26,10 +26,10 @@ export function detailsTab(body, { id, course, reload }) {
   const alt = h("input", { type: "text", maxlength: 200, value: course.image?.alt || "" });
   const decorative = h("input", { type: "checkbox", id: "img-decorative" });
   const upload = h("button", { type: "button", onclick: async e => {
-      if (!file.files[0]) return void imgMsg.replaceChildren(notice("Choose an image first."));
-      if (!decorative.checked && !alt.value.trim()) return void imgMsg.replaceChildren(notice("Describe the image for people who can't see it, or tick Decorative."));
+      if (!file.files[0]) return void put(imgMsg, notice("Choose an image first."));
+      if (!decorative.checked && !alt.value.trim()) return void put(imgMsg, notice("Describe the image for people who can't see it, or tick Decorative."));
       const ok = await guarded(e.target, imgMsg, async () => {
-        imgMsg.replaceChildren(notice("Uploading.", "ok"));
+        put(imgMsg, notice("Uploading.", "ok"));
         const data = await prepareImage(file.files[0]);
         return api(`/admin/courses/${id}/image`, { method: "PUT", body: { data, alt: alt.value, decorative: decorative.checked } });
       });
@@ -47,7 +47,7 @@ export function detailsTab(body, { id, course, reload }) {
       if (await guarded(e.target, imgMsg, () => api(`/admin/courses/${id}/image`, { method: "DELETE" }))) await reload();
     }, "danger") : null));
 
-  body.append(
+  add(body, 
     imageCard,
     h("form", { class: "card", novalidate: true, onsubmit: async e => {
         e.preventDefault();

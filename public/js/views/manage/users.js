@@ -1,13 +1,13 @@
 import { api } from "../../api.js";
-import { h, notice, field, guarded, when, btn } from "../../dom.js";
+import { h, notice, field, guarded, when, btn, put } from "../../dom.js";
 
 export async function usersView(main, { user, flash }) {
-  if (user.role !== "admin") return void main.replaceChildren(h("h1", null, "Manage users"), notice("Only administrators can manage users."));
+  if (user.role !== "admin") return void put(main, h("h1", null, "Manage users"), notice("Only administrators can manage users."));
   const users = await api("/admin/users");
   const msg = h("div");
 
   // A generated password is shown once, here, for the admin to pass on.
-  const showPassword = (who, pw) => msg.replaceChildren(h("div", { class: "notice warn", role: "status" },
+  const showPassword = (who, pw) => put(msg, h("div", { class: "notice warn", role: "status" },
     `Temporary password for ${who}: `, h("code", null, pw), h("p", null, "This is shown once. Pass it on securely. They'll be asked to choose their own at first sign-in.")));
 
   const email = h("input", { type: "email", autocomplete: "off", required: true });
@@ -17,13 +17,13 @@ export async function usersView(main, { user, flash }) {
 
   const redraw = flash => usersView(main, { user, flash });
 
-  main.replaceChildren(
+  put(main, 
     h("p", null, h("a", { href: "#/manage" }, "All courses")),
     h("h1", null, "Manage users"),
     msg,
     h("form", { class: "card", novalidate: true, onsubmit: async e => {
         e.preventDefault();
-        if (!email.value.trim()) return void msg.replaceChildren(notice("Enter an email address."));
+        if (!email.value.trim()) return void put(msg, notice("Enter an email address."));
         const r = await guarded(create, msg, () => api("/admin/users", { method: "POST", body: { email: email.value, name: name.value, role: role.value } }));
         if (r) await redraw([r.email, r.temporaryPassword]);   // the page is rebuilt, so the password travels with it
       } },
@@ -37,7 +37,7 @@ export async function usersView(main, { user, flash }) {
         const roleSel = h("select", { "aria-label": `Role for ${u.email}` }, ["learner", "author", "admin"].map(v => h("option", { value: v, selected: v === u.role }, v[0].toUpperCase() + v.slice(1))));
         roleSel.addEventListener("change", async () => {
           if (!(await guarded(roleSel, msg, () => api(`/admin/users/${u.id}`, { method: "PATCH", body: { role: roleSel.value } })))) roleSel.value = u.role;
-          else msg.replaceChildren(notice(`${u.email} is now ${roleSel.value}. They've been signed out.`, "ok"));
+          else put(msg, notice(`${u.email} is now ${roleSel.value}. They've been signed out.`, "ok"));
         });
         return h("tr", null,
           h("th", { scope: "row" }, u.email), h("td", null, u.name), h("td", null, roleSel),

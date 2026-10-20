@@ -1,5 +1,5 @@
 import { api } from "../../api.js";
-import { h, notice, guarded } from "../../dom.js";
+import { h, notice, guarded, put, add } from "../../dom.js";
 import { handoff } from "../../state.js";
 import { detailsTab } from "./details.js";
 import { lessonsTab } from "./lessons.js";
@@ -19,7 +19,7 @@ export async function manageCourseView(main, { params }) {
   const head = h("div"), body = h("div");
   const flagsBox = h("div");
   if (handoff.flags?.length) {                                   // what the AI wasn't sure about, shown once
-    flagsBox.append(h("div", { class: "notice warn", role: "status" }, h("strong", null, "The AI flagged these for you to check:"),
+    add(flagsBox, h("div", { class: "notice warn", role: "status" }, h("strong", null, "The AI flagged these for you to check:"),
       h("ul", null, handoff.flags.map(f => h("li", null, f)))));
   }
   handoff.flags = null;
@@ -36,7 +36,7 @@ export async function manageCourseView(main, { params }) {
         if (published && !confirm("Unpublishing hides the course from learners. Enrolments and results are kept. Continue?")) return;
         if (await guarded(e.target, msg, () => api(`/admin/courses/${id}/${published ? "unpublish" : "publish"}`, { method: "POST" }))) await reload();
       } }, published ? "Unpublish" : "Publish");
-    head.replaceChildren(
+    put(head, 
       h("p", null, h("a", { href: "#/manage" }, "All courses")),
       h("h1", null, course.title),
       h("p", { class: "row" }, h("span", { class: `badge ${course.status}` }, published ? "Published" : "Draft"),
@@ -44,11 +44,11 @@ export async function manageCourseView(main, { params }) {
       msg,
       h("nav", { class: "tabs", "aria-label": "Course sections" },
         TABS.map(([key, label]) => h("a", { href: `#/manage/course/${id}/${key}`, "aria-current": key === current[0] ? "page" : null }, label))));
-    body.replaceChildren();
+    put(body, );
     try { await current[2](body, ctx()); }
-    catch (err) { body.replaceChildren(notice(err.message)); }
+    catch (err) { put(body, notice(err.message)); }
   }
 
-  main.replaceChildren(head, flagsBox, body);
+  put(main, head, flagsBox, body);
   await draw();
 }

@@ -19,7 +19,7 @@ export function createApp({ db, config, ai }) {
   app.use(helmet());
   // JSON bodies are small, except a cover image upload (base64 of up to 2 MB).
   const smallJson = express.json({ limit: "200kb" }), imageJson = express.json({ limit: "3.5mb" });
-  app.use((req, res, next) => (req.method === "PUT" && /^\/api\/admin\/courses\/\d+\/image$/.test(req.path) ? imageJson : smallJson)(req, res, next));
+  app.use((req, res, next) => (/^\/api\/admin\/courses\/\d+\/images?$/.test(req.path) && ["PUT", "POST"].includes(req.method) ? imageJson : smallJson)(req, res, next));
   app.get("/health", (req, res) => res.json({ ok: true }));
   app.use("/api", jsonOnly, sessionMiddleware(db));
   // Someone on a temporary password can only use the sign-in and password routes until they choose their own.

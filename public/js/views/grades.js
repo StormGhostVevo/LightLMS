@@ -1,9 +1,9 @@
 import { api } from "../api.js";
-import { h, when } from "../dom.js";
+import { h, when, put } from "../dom.js";
 
 export async function gradesView(main) {
   const grades = await api("/grades");
-  main.replaceChildren(h("h1", null, "Grades"),
+  put(main, h("h1", null, "Grades"),
     grades.length
       ? h("div", { class: "table-wrap" }, h("table", null,
           h("caption", { class: "sr" }, "Your best quiz result in each course"),

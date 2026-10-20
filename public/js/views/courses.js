@@ -1,5 +1,5 @@
 import { api } from "../api.js";
-import { h, notice, progressBar } from "../dom.js";
+import { h, notice, progressBar, put, add } from "../dom.js";
 
 export async function coursesView(main, { user }) {
   const [mine, available] = await Promise.all([api("/courses"), api("/courses/available")]);
@@ -12,7 +12,7 @@ export async function coursesView(main, { user }) {
       progressBar(c.percent, `Progress in ${c.title}`),
       c.completed ? h("p", { class: "badge" }, "Completed") : null));
 
-  main.replaceChildren(
+  put(main, 
     h("h1", null, user.name ? `Welcome, ${user.name}` : "My courses"),
     msg,
     mine.length ? h("div", { class: "grid" }, mine.map(card))
@@ -23,8 +23,8 @@ export async function coursesView(main, { user }) {
         h("h3", null, c.title),
         c.description ? h("p", null, c.description) : null,
         h("button", { onclick: async e => {
-            e.target.disabled = true; msg.replaceChildren();
+            e.target.disabled = true; put(msg);
             try { await api(`/courses/${c.id}/enrol`, { method: "POST" }); location.hash = `#/course/${c.id}`; }
-            catch (err) { e.target.disabled = false; msg.append(notice(err.message)); }
+            catch (err) { e.target.disabled = false; add(msg, notice(err.message)); }
           } }, "Enrol")))))) : null);
 }

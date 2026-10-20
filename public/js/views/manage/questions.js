@@ -1,5 +1,5 @@
 import { api } from "../../api.js";
-import { h, notice, field, btn, guarded, uid } from "../../dom.js";
+import { h, notice, field, btn, guarded, uid, put, add } from "../../dom.js";
 
 export function questionsTab(body, { id, course, reload }) {
   const msg = h("div");
@@ -24,19 +24,19 @@ export function questionsTab(body, { id, course, reload }) {
       const input = h("input", { type: "text", maxlength: 300, value: text, "aria-label": "Answer option" });
       const radio = h("input", { type: "radio", name: group, "aria-label": "This is the correct answer", checked: correct });
       const row = h("div", { class: "option-row" }, radio, input, btn("Remove", () => { if (rows.children.length > 2) row.remove(); }, "secondary small", { "aria-label": "Remove this option" }));
-      rows.append(row);
+      add(rows, row);
     };
     (q ? q.options : ["", ""]).forEach((o, i) => addOption(o, q ? i === q.answer : i === 0));
     const save = h("button", { type: "submit" }, q ? "Save question" : "Add question");
-    host.replaceChildren(h("form", { class: "card", novalidate: true, onsubmit: async e => {
+    put(host, h("form", { class: "card", novalidate: true, onsubmit: async e => {
         e.preventDefault();
         const options = [...rows.querySelectorAll(".option-row")].map(r => ({ text: r.querySelector("input[type=text]").value.trim(), correct: r.querySelector("input[type=radio]").checked }));
         const kept = options.filter(o => o.text);
         const answer = kept.findIndex(o => o.correct);
-        if (!prompt.value.trim()) return void err.replaceChildren(notice("Write the question."));
-        if (kept.length < 2) return void err.replaceChildren(notice("Give at least two answer options."));
-        if (new Set(kept.map(o => o.text)).size !== kept.length) return void err.replaceChildren(notice("Each answer option must be different."));
-        if (answer < 0) return void err.replaceChildren(notice("Select which option is correct."));
+        if (!prompt.value.trim()) return void put(err, notice("Write the question."));
+        if (kept.length < 2) return void put(err, notice("Give at least two answer options."));
+        if (new Set(kept.map(o => o.text)).size !== kept.length) return void put(err, notice("Each answer option must be different."));
+        if (answer < 0) return void put(err, notice("Select which option is correct."));
         const payload = { prompt: prompt.value, options: kept.map(o => o.text), answer, explanation: explanation.value };
         const ok = await guarded(save, err, () => q ? api(`/admin/questions/${q.id}`, { method: "PATCH", body: payload })
                                                     : api(`/admin/courses/${id}/questions`, { method: "POST", body: payload }));
@@ -47,7 +47,7 @@ export function questionsTab(body, { id, course, reload }) {
       h("fieldset", { class: "plain" }, h("legend", null, "Answer options (select the correct one)"), rows,
         rows.children.length < 6 ? btn("Add an option", () => { if (rows.children.length < 6) addOption(); }) : null),
       field("Explanation (shown after answering, if the course allows)", explanation),
-      h("p", null, save, " ", btn("Cancel", () => host.replaceChildren()))));
+      h("p", null, save, " ", btn("Cancel", () => put(host, )))));
     prompt.focus();
   }
 
@@ -55,12 +55,12 @@ export function questionsTab(body, { id, course, reload }) {
   const aiMsg = h("div");
   const count = h("select", { "aria-label": "How many questions" }, [3, 5, 8, 10].map(n => h("option", { value: n, selected: n === 5 }, `${n} questions`)));
   const gen = h("button", { type: "button", onclick: async e => {
-      const r = await guarded(e.target, aiMsg, () => { aiMsg.replaceChildren(notice("Writing questions. This can take up to a minute.", "ok")); return api(`/admin/courses/${id}/quiz/generate`, { method: "POST", body: { count: Number(count.value) } }); });
+      const r = await guarded(e.target, aiMsg, () => { put(aiMsg, notice("Writing questions. This can take up to a minute.", "ok")); return api(`/admin/courses/${id}/quiz/generate`, { method: "POST", body: { count: Number(count.value) } }); });
       if (r) { await reload(); if (r.flags?.length) document.querySelector("main").prepend(h("div", { class: "notice warn", role: "status" }, `Added ${r.added} draft questions. `, r.flags.join(" "))); }
     } }, "Generate with AI");
 
   const addHost = h("div");
-  body.append(
+  add(body, 
     h("h2", null, "Questions"),
     h("p", { class: "hint" }, "Learners only see approved questions. Questions written by the AI start as drafts: read each one, fix it if needed, then approve it."),
     msg,
@@ -69,7 +69,7 @@ export function questionsTab(body, { id, course, reload }) {
         if (!confirm(`Approve all ${drafts.length} draft questions? Make sure you've read them.`)) return;
         e.target.disabled = true;
         try { for (const q of drafts) await api(`/admin/questions/${q.id}`, { method: "PATCH", body: { status: "approved" } }); await reload(); }
-        catch (err) { msg.replaceChildren(notice(err.message)); e.target.disabled = false; }
+        catch (err) { put(msg, notice(err.message)); e.target.disabled = false; }
       }) : null),
     aiMsg, addHost,
     qs.length ? h("ol", { class: "manage-list" }, qs.map((q, i) => {

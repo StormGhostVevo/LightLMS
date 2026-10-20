@@ -1,12 +1,12 @@
 import { api } from "../../api.js";
-import { h, notice, when, btn, guarded } from "../../dom.js";
+import { h, notice, when, btn, guarded, put, add } from "../../dom.js";
 
 export async function certificatesTab(body, { id, course }) {
   const list = await api(`/admin/courses/${id}/certificates`);
   const msg = h("div");
-  const redraw = async () => { body.replaceChildren(); await certificatesTab(body, { id, course }); };
+  const redraw = async () => { put(body, ); await certificatesTab(body, { id, course }); };
 
-  body.append(h("h2", null, "Certificates"),
+  add(body, h("h2", null, "Certificates"),
     course.certificate_enabled ? null : notice("Certificates are switched off for this course (Settings). Turning them on issues one to everyone who has already completed it.", "warn"),
     msg,
     list.length ? h("div", { class: "table-wrap" }, h("table", null,
@@ -17,7 +17,7 @@ export async function certificatesTab(body, { id, course }) {
         return h("tr", null,
           h("th", { scope: "row" }, c.email),
           h("td", null, h("span", { class: "row" }, name, btn("Save", async e => {
-            if (await guarded(e.target, msg, () => api(`/admin/certificates/${c.id}`, { method: "PATCH", body: { recipientName: name.value } }))) msg.replaceChildren(notice("Name updated.", "ok"));
+            if (await guarded(e.target, msg, () => api(`/admin/certificates/${c.id}`, { method: "PATCH", body: { recipientName: name.value } }))) put(msg, notice("Name updated.", "ok"));
           }, "secondary small"))),
           h("td", null, h("a", { href: c.url, target: "_blank", rel: "noopener" }, c.code)),
           h("td", null, when(c.issuedAt)),

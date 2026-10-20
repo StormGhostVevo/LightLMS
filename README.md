@@ -55,6 +55,17 @@ but unguessable, so don't use a cover image for anything sensitive. Replacing or
 
 - `PUT|DELETE /api/admin/courses/:id/image` `{ data: base64, alt, decorative }`, `GET /media/:key`
 
+### Pictures in lessons
+
+The lesson editor has a **Picture** button. Pick an image, describe it (the description becomes its alt text; leave it blank only
+for pure decoration, which asks you to confirm), and it is inserted where the cursor was. Large photos are shrunk before upload.
+In lesson HTML an image is only kept if it points at this site's own `/media/<key>` address, so a lesson can never load
+something from elsewhere, and any other attribute is dropped. Limits: 2 MB each, 60 pictures and 25 MB per course. A picture that
+no lesson uses any more is deleted once it is an hour old (never sooner, so one uploaded while you're still writing isn't lost).
+Cover images and lesson pictures are tracked separately, so replacing a cover never touches lesson pictures.
+
+- `POST /api/admin/courses/:id/images` `{ data: base64 }` returns `{ url }`
+
 Try it with sample data (development only; it refuses to run in production):
 
     npm run seed-demo   # admin@demo.test, author@demo.test, learner@demo.test, password demo-password-1

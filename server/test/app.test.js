@@ -715,6 +715,68 @@ test("cover images: replacing or removing deletes the old file; deleting a draft
   s.close();
 });
 
+const KEY22 = "AAAAAAAAAAAAAAAAAAAAAA";
+
+test("lesson HTML: only this site's own images survive; everything else about an image is stripped", () => {
+  const ok = cleanBody(`<p>See:</p><img src="/media/${KEY22}" alt="A hard hat" onerror="alert(1)" width="9999" style="x">`);
+  assert.equal(ok, `<p>See:</p><img src="/media/${KEY22}" alt="A hard hat" loading="lazy" />`);
+  for (const src of ["https://evil.example/x.png", "http://evil.example/x.png", "//evil.example/x.png", "data:image/png;base64,AAAA", "javascript:alert(1)",
+                     "/media/short", `/media/${KEY22}/extra`, `/media/${KEY22}?x=1`, "/other/path.png", ""])
+    assert.doesNotMatch(cleanBody(`<p>x</p><img src="${src}" alt="y">`), /<img/, src);
+  assert.match(cleanBody(`<img src="/media/${KEY22}">`), /alt=""/);                                       // no description counts as decorative
+});
+
+test("lesson images: authors upload, place them in lessons, learners see them; covers and lesson images don't clobber each other", async () => {
+  const s = await start();
+  const { author, id } = await quizCourse(s);
+  const learner = await s.as("learner");
+  assert.equal((await learner(`/api/admin/courses/${id}/images`, { method: "POST", body: { data: b64(PNG) } })).status, 403);
+  for (const data of [b64(Buffer.from("<svg><script>1</script></svg>")), "not base64!!", undefined])
+    assert.equal((await author(`/api/admin/courses/${id}/images`, { method: "POST", body: { data } })).status, 400);
+  assert.equal((await author(`/api/admin/courses/9999/images`, { method: "POST", body: { data: b64(PNG) } })).status, 404);
+
+  const up = await author(`/api/admin/courses/${id}/images`, { method: "POST", body: { data: b64(PNG) } });
+  assert.equal(up.status, 201);
+  assert.match(up.body.url, /^\/media\/[A-Za-z0-9_-]{22}$/);
+  assert.equal((await s.raw(up.body.url)).headers.get("content-type"), "image/png");
+
+  const lesson = await author(`/api/admin/courses/${id}/lessons`, { method: "POST", body: { title: "With a picture", body: `<p>Look</p><img src="${up.body.url}" alt="A diagram">` } });
+  assert.equal(lesson.status, 201);
+  assert.match(lesson.body.body, /<img src="\/media\//);
+  const view = (await learner(`/api/courses/${id}`)).body;
+  assert.match(view.lessons.find(l => l.title === "With a picture").body, /alt="A diagram"/);
+
+  await author(`/api/admin/courses/${id}/image`, { method: "PUT", body: { data: b64(PNG), alt: "Cover" } });       // set, then replace, the cover
+  await author(`/api/admin/courses/${id}/image`, { method: "PUT", body: { data: b64(PNG), alt: "Cover 2" } });
+  assert.equal((await s.raw(up.body.url)).status, 200);                                                         // the lesson image is untouched
+  assert.equal(s.db.prepare("SELECT COUNT(*) FROM images WHERE kind = 'lesson'").pluck().get(), 1);
+  assert.equal(s.db.prepare("SELECT COUNT(*) FROM images WHERE kind = 'cover'").pluck().get(), 1);
+  assert.equal((await author(`/api/admin/courses/${id}/image`, { method: "DELETE", body: {} })).status, 204);
+  assert.equal((await s.raw(up.body.url)).status, 200);
+  s.close();
+});
+
+test("lesson images: unused ones are cleaned up after an hour, never sooner; used ones stay; limits apply", async () => {
+  const s = await start();
+  const { author, id } = await quizCourse(s);
+  const upload = async () => (await author(`/api/admin/courses/${id}/images`, { method: "POST", body: { data: b64(PNG) } })).body.url;
+  const [used, oldUnused, freshUnused] = [await upload(), await upload(), await upload()];
+  const old = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  s.db.prepare("UPDATE images SET created_at = ? WHERE key IN (?, ?)").run(old, used.slice(7), oldUnused.slice(7));
+  await author(`/api/admin/courses/${id}/lessons`, { method: "POST", body: { title: "Uses one", body: `<p>x</p><img src="${used}" alt="">` } });   // saving a lesson triggers the cleanup
+  assert.equal((await s.raw(used)).status, 200);            // old but in use
+  assert.equal((await s.raw(oldUnused)).status, 404);       // old and unused: removed
+  assert.equal((await s.raw(freshUnused)).status, 200);     // unused but new: the author may still be writing
+  const lessonId = s.db.prepare("SELECT id FROM lessons WHERE title = 'Uses one'").pluck().get();
+  await author(`/api/admin/lessons/${lessonId}`, { method: "DELETE" });
+  assert.equal((await s.raw(used)).status, 404);            // the lesson is gone and the image was old, so it goes too
+  assert.equal((await s.raw(freshUnused)).status, 200);     // the new one is still protected
+
+  for (let i = 0; i < 60; i++) s.db.prepare("INSERT INTO images (key, course_id, kind, mime, bytes, size, created_at) VALUES (?, ?, 'lesson', 'image/png', ?, 10, ?)").run(`filler${i}`, id, PNG, new Date().toISOString());
+  assert.equal((await author(`/api/admin/courses/${id}/images`, { method: "POST", body: { data: b64(PNG) } })).status, 409);
+  s.close();
+});
+
 test("tidyQuestions drops bad questions; cleanBody strips scripts", () => {
   const flags = [];
   const out = tidyQuestions([

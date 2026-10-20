@@ -1,5 +1,5 @@
 import { api } from "../api.js";
-import { h, notice, progressBar, when } from "../dom.js";
+import { h, notice, progressBar, when, put, add } from "../dom.js";
 
 export async function courseView(main, { params }) {
   const id = params[0];
@@ -11,7 +11,7 @@ export async function courseView(main, { params }) {
   const lessonButtons = new Map();
   const quizBody = h("div");
 
-  const fail = err => { message.replaceChildren(notice(err.message)); message.scrollIntoView({ block: "nearest" }); };
+  const fail = err => { put(message, notice(err.message)); message.scrollIntoView({ block: "nearest" }); };
 
   // ---- progress ----
   async function drawProgress() {
@@ -19,7 +19,7 @@ export async function courseView(main, { params }) {
     const need = [];
     if (progress.rule !== "quiz") need.push("mark every lesson as done");
     if (progress.quiz.required) need.push(`pass the quiz (${course.passMark}% or more)`);
-    progressBox.replaceChildren(
+    put(progressBox, 
       h("h2", null, "Your progress"),
       progressBar(progress.percent, "Course progress"),
       progress.completed
@@ -36,7 +36,7 @@ export async function courseView(main, { params }) {
     lessonButtons.set(lesson.id, paint);
     paint(done());
     btn.addEventListener("click", async () => {
-      btn.disabled = true; message.replaceChildren();
+      btn.disabled = true; put(message, );
       try {
         progress = await api(`/courses/${id}/lessons/${lesson.id}/complete`, { method: done() ? "DELETE" : "POST" });
         await drawProgress();
@@ -55,8 +55,8 @@ export async function courseView(main, { params }) {
 
   function intro() {
     const n = course.questions.length;
-    if (!n) return void quizBody.replaceChildren(h("p", { class: "hint" }, "This course doesn't have a quiz yet."));
-    quizBody.replaceChildren(
+    if (!n) return void put(quizBody, h("p", { class: "hint" }, "This course doesn't have a quiz yet."));
+    put(quizBody, 
       h("p", null, `${n} question${n === 1 ? "" : "s"}. Pass mark ${course.passMark}%. `,
         course.maxAttempts == null ? "You can attempt it as many times as you like." : `Attempt ${Math.min(history.attemptsUsed + 1, course.maxAttempts)} of ${course.maxAttempts} available.`),
       history.passed ? h("p", null, h("span", { class: "badge" }, "Passed")) : null,
@@ -76,16 +76,16 @@ export async function courseView(main, { params }) {
       h("legend", null, `${i + 1}. ${q.prompt}`),
       q.options.map((opt, k) => h("label", { class: "choice" }, h("input", { type: "radio", name: `q${q.id}`, value: k }), h("span", null, opt)))));
     const submit = h("button", { type: "submit" }, "Submit answers");
-    quizBody.replaceChildren(h("form", { novalidate: true, onsubmit: async e => {
+    put(quizBody, h("form", { novalidate: true, onsubmit: async e => {
         e.preventDefault();
-        error.replaceChildren();
+        put(error, );
         const answers = {};
         for (const q of course.questions) {
           const picked = e.target.querySelector(`input[name="q${q.id}"]:checked`);
           if (picked) answers[q.id] = Number(picked.value);
         }
         const missing = course.questions.length - Object.keys(answers).length;
-        if (missing) { error.append(notice(`Answer every question before submitting (${missing} left).`)); error.scrollIntoView({ block: "center" }); return; }   // an unanswered question would use up an attempt
+        if (missing) { add(error, notice(`Answer every question before submitting (${missing} left).`)); error.scrollIntoView({ block: "center" }); return; }   // an unanswered question would use up an attempt
         submit.disabled = true;
         try {
           const attempt = await api(`/courses/${id}/quiz`, { method: "POST", body: { answers } });
@@ -93,7 +93,7 @@ export async function courseView(main, { params }) {
           progress = await api(`/courses/${id}/progress`);
           await drawProgress();
           result(attempt);
-        } catch (err) { submit.disabled = false; error.append(notice(err.message)); }
+        } catch (err) { submit.disabled = false; add(error, notice(err.message)); }
       } },
       error, groups, h("p", null, submit, " ", h("button", { type: "button", class: "secondary", onclick: intro }, "Cancel"))));
     quizBody.scrollIntoView({ block: "start" });
@@ -101,7 +101,7 @@ export async function courseView(main, { params }) {
 
   function result(a) {
     const revealed = a.results.some(r => "answer" in r);
-    quizBody.replaceChildren(
+    put(quizBody, 
       h("div", { role: "status", class: `notice ${a.passed ? "ok" : "error"}` },
         `You scored ${a.score} of ${a.total} (${a.percent}%). The pass mark is ${a.passMark}%. `, h("strong", null, a.passed ? "Passed." : "Not passed yet.")),
       h("p", { class: "hint" }, `Attempt taken ${when(a.submittedAt)}.`),
@@ -115,7 +115,7 @@ export async function courseView(main, { params }) {
     quizBody.scrollIntoView({ block: "start" });
   }
 
-  main.replaceChildren(
+  put(main, 
     h("p", null, h("a", { href: "#/" }, "Back to my courses")),
     h("h1", null, course.title),
     course.image ? h("img", { class: "banner", src: course.image.url, alt: course.image.alt }) : null,

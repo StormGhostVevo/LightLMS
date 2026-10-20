@@ -1,5 +1,5 @@
 import { api } from "../api.js";
-import { h, notice, when } from "../dom.js";
+import { h, notice, when, put, add } from "../dom.js";
 
 // Used for the forced change after a temporary password, and from the Account page.
 export function passwordView({ forced = false, onDone }) {
@@ -10,15 +10,15 @@ export function passwordView({ forced = false, onDone }) {
   const submit = h("button", { type: "submit" }, "Change password");
   return h("form", { class: "card", novalidate: true, onsubmit: async e => {
       e.preventDefault();
-      msg.replaceChildren();
-      if (next.value.length < 10) return void msg.append(notice("The new password needs at least 10 characters."));
-      if (next.value !== again.value) return void msg.append(notice("The two new passwords don't match."));
+      put(msg);
+      if (next.value.length < 10) return void add(msg, notice("The new password needs at least 10 characters."));
+      if (next.value !== again.value) return void add(msg, notice("The two new passwords don't match."));
       submit.disabled = true;
       try {
         await api("/auth/password", { method: "POST", body: { current: current.value, next: next.value } });
         current.value = next.value = again.value = "";
-        if (onDone) onDone(); else msg.append(notice("Password changed. Any other devices were signed out.", "ok"));
-      } catch (err) { msg.append(notice(err.message)); }
+        if (onDone) onDone(); else add(msg, notice("Password changed. Any other devices were signed out.", "ok"));
+      } catch (err) { add(msg, notice(err.message)); }
       finally { submit.disabled = false; }
     } },
     h("h1", null, forced ? "Choose your own password" : "Change password"),
@@ -34,7 +34,7 @@ export async function accountView(main, { user, setUser }) {
   const certs = await api("/certificates");
   const nameMsg = h("div");
   const name = h("input", { id: "name", type: "text", autocomplete: "name", value: user.name || "", maxlength: 200 });
-  main.replaceChildren(
+  put(main, 
     h("h1", null, "Account"),
     h("section", { class: "card" },
       h("h2", null, "Your details"),
@@ -42,9 +42,9 @@ export async function accountView(main, { user, setUser }) {
       nameMsg,
       h("form", { novalidate: true, onsubmit: async e => {
           e.preventDefault();
-          nameMsg.replaceChildren();
-          try { setUser(await api("/auth/me", { method: "PATCH", body: { name: name.value } })); nameMsg.append(notice("Saved.", "ok")); }
-          catch (err) { nameMsg.append(notice(err.message)); }
+          put(nameMsg, );
+          try { setUser(await api("/auth/me", { method: "PATCH", body: { name: name.value } })); add(nameMsg, notice("Saved.", "ok")); }
+          catch (err) { add(nameMsg, notice(err.message)); }
         } },
         h("label", { for: "name" }, "Your name"), name,
         h("p", { class: "hint" }, "This is the name printed on certificates you earn from now on. Existing certificates keep the name they were issued with."),

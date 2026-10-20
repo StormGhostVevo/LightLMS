@@ -1,4 +1,5 @@
 import { cleanBody, plain, tidyQuestions } from "./ai.js";
+import { cleanupLessonImages } from "./images.js";
 
 const now = () => new Date().toISOString();
 const bad = (res, msg, status = 400) => res.status(status).json({ error: msg });
@@ -69,6 +70,7 @@ export function mountEditing({ admin, db, course, touch, evaluateEveryone }) {
     const pos = db.prepare("SELECT COALESCE(MAX(position) + 1, 0) FROM lessons WHERE course_id = ?").pluck().get(c.id);
     const { lastInsertRowid } = db.prepare("INSERT INTO lessons (course_id, position, title, body) VALUES (?, ?, ?, ?)").run(c.id, pos, f.title, f.body);
     touch(c.id);
+    cleanupLessonImages(db, c.id);
     res.status(201).json({ id: lastInsertRowid, position: pos, ...f });
   });
 
@@ -84,6 +86,7 @@ export function mountEditing({ admin, db, course, touch, evaluateEveryone }) {
     if (f.error) return bad(res, f.error);
     db.prepare("UPDATE lessons SET title = ?, body = ? WHERE id = ?").run(f.title, f.body, l.id);
     touch(l.course_id);
+    cleanupLessonImages(db, l.course_id);
     res.json({ id: l.id, position: l.position, ...f });
   });
 
@@ -100,6 +103,7 @@ export function mountEditing({ admin, db, course, touch, evaluateEveryone }) {
       touch(c.id);
     })();
     recheck(c.id);
+    cleanupLessonImages(db, c.id);
     res.status(204).end();
   });
 

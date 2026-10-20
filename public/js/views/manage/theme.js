@@ -1,5 +1,5 @@
 import { api } from "../../api.js";
-import { h, notice, field, btn, guarded } from "../../dom.js";
+import { h, notice, field, btn, guarded, put, add } from "../../dom.js";
 
 // ---- the same contrast maths as the server, so problems show while you pick colours ----
 const channel = v => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
@@ -31,7 +31,7 @@ const PRESETS = [
 ];
 
 export async function themeView(main, { user, reloadTheme }) {
-  if (user.role !== "admin") return void main.replaceChildren(h("h1", null, "Appearance"), notice("Only administrators can change the appearance."));
+  if (user.role !== "admin") return void put(main, h("h1", null, "Appearance"), notice("Only administrators can change the appearance."));
   const [theme, options] = await Promise.all([api("/theme"), api("/theme/options")]);
 
   const state = { colours: { ...theme.colours }, font: theme.font, fontSize: theme.fontSize, siteName: theme.siteName };
@@ -53,7 +53,7 @@ export async function themeView(main, { user, reloadTheme }) {
                           ["--header", c.header], ["--header-text", c.headerText], ["--font", stack]]) preview.style.setProperty(k, v);
     preview.style.fontSize = { small: "93.75%", normal: "100%", large: "112.5%" }[size.value];
     const bad = problems();
-    contrastBox.replaceChildren(h("ul", { class: "contrast-list" }, PAIRS.filter(([fg, bg]) => state.colours[fg] && state.colours[bg]).map(([fg, bg, label]) => {
+    put(contrastBox, h("ul", { class: "contrast-list" }, PAIRS.filter(([fg, bg]) => state.colours[fg] && state.colours[bg]).map(([fg, bg, label]) => {
       const r = ratio(state.colours[fg], state.colours[bg]);
       return h("li", { class: r < options.minContrast ? "low" : "" }, `${label}: ${r.toFixed(1)}:1 ${r < options.minContrast ? `(needs ${options.minContrast}:1 or more)` : "(good)"}`);
     })));
@@ -97,10 +97,10 @@ export async function themeView(main, { user, reloadTheme }) {
   font.addEventListener("change", paint); size.addEventListener("change", paint);
   save.addEventListener("click", async () => {
     const r = await guarded(save, msg, () => api("/admin/theme", { method: "PUT", body: { siteName: siteName.value, font: font.value, fontSize: size.value, colours: state.colours } }));
-    if (r) { await reloadTheme(); msg.replaceChildren(notice("Saved. Everyone sees the new look straight away.", "ok")); }
+    if (r) { await reloadTheme(); put(msg, notice("Saved. Everyone sees the new look straight away.", "ok")); }
   });
 
-  main.replaceChildren(
+  put(main, 
     h("p", null, h("a", { href: "#/manage" }, "All courses")),
     h("h1", null, "Appearance"),
     h("p", { class: "hint" }, "Change the colours, font and name of the site. Each set of colours is chosen together, and the server refuses combinations that are hard to read."),
@@ -121,7 +121,7 @@ export async function themeView(main, { user, reloadTheme }) {
         h("h2", null, "Preview"),
         preview, h("h3", null, "Readability"), contrastBox)));
 
-  preview.append(
+  add(preview, 
     h("div", { class: "p-bar" }, h("span", null, "Site name"), h("span", null, "My courses"), h("span", null, "Grades")),
     h("div", { class: "p-body" }, h("div", { class: "p-card" },
       h("h3", null, "Workplace safety basics"),

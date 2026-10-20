@@ -1,5 +1,5 @@
 import { api } from "../../api.js";
-import { h, notice, when, field, guarded } from "../../dom.js";
+import { h, notice, when, field, guarded, put } from "../../dom.js";
 import { handoff } from "../../state.js";
 
 export async function manageView(main, { user }) {
@@ -12,7 +12,7 @@ export async function manageView(main, { user }) {
   const createBtn = h("button", { type: "submit" }, "Create course");
   const create = h("form", { class: "card", novalidate: true, onsubmit: async e => {
       e.preventDefault();
-      if (!title.value.trim()) return void createMsg.replaceChildren(notice("Give the course a title."));
+      if (!title.value.trim()) return void put(createMsg, notice("Give the course a title."));
       const made = await guarded(createBtn, createMsg, () => api("/admin/courses", { method: "POST", body: { title: title.value } }));
       if (made) location.hash = `#/manage/course/${made.id}/lessons`;
     } },
@@ -27,9 +27,9 @@ export async function manageView(main, { user }) {
     : notice("Demo mode: no AI is connected. Your text is split into lessons and the questions are placeholders.", "ok");
   const draft = h("form", { class: "card", novalidate: true, onsubmit: async e => {
       e.preventDefault();
-      if (source.value.trim().length < 80) return void aiMsg.replaceChildren(notice("Paste a bit more text first (at least a couple of sentences)."));
+      if (source.value.trim().length < 80) return void put(aiMsg, notice("Paste a bit more text first (at least a couple of sentences)."));
       const made = await guarded(draftBtn, aiMsg, () => {
-        aiMsg.replaceChildren(notice("Drafting. This can take up to a minute.", "ok"));
+        put(aiMsg, notice("Drafting. This can take up to a minute.", "ok"));
         return api("/admin/ai/draft-course", { method: "POST", body: { text: source.value } });
       });
       if (made) { handoff.flags = made.flags; location.hash = `#/manage/course/${made.id}/lessons`; }
@@ -39,7 +39,7 @@ export async function manageView(main, { user }) {
     aiNote, aiMsg, field("Source material", source),
     ai.provider === "off" ? null : draftBtn);
 
-  main.replaceChildren(
+  put(main, 
     h("h1", null, "Manage courses"),
     admin ? h("p", { class: "row" }, h("a", { href: "#/manage/users" }, "Manage users"), h("a", { href: "#/manage/theme" }, "Appearance")) : null,
     h("div", { class: "grid2" }, create, draft),

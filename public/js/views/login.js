@@ -1,5 +1,5 @@
 import { api } from "../api.js";
-import { h, notice } from "../dom.js";
+import { h, notice, put, add } from "../dom.js";
 
 export function loginView(onSignedIn, siteName) {
   const error = h("div");
@@ -8,11 +8,11 @@ export function loginView(onSignedIn, siteName) {
   const submit = h("button", { type: "submit" }, "Sign in");
   return h("form", { class: "card", novalidate: true, onsubmit: async e => {
       e.preventDefault();
-      error.replaceChildren();
-      if (!email.value.trim() || !password.value) { error.append(notice("Enter your email and password.")); return; }
+      put(error, );
+      if (!email.value.trim() || !password.value) { add(error, notice("Enter your email and password.")); return; }
       submit.disabled = true;
       try { onSignedIn(await api("/auth/login", { method: "POST", body: { email: email.value.trim(), password: password.value } })); }
-      catch (err) { error.append(notice(err.message)); password.value = ""; password.focus(); }
+      catch (err) { add(error, notice(err.message)); password.value = ""; password.focus(); }
       finally { submit.disabled = false; }
     } },
     siteName ? h("p", { class: "brand-line" }, siteName) : null,

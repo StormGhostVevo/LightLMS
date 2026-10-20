@@ -109,10 +109,17 @@ export function makeAi(config) {
 
 // ---- turning model output into safe, valid content ----
 export const plain = s => sanitizeHtml(String(s ?? ""), { allowedTags: [], allowedAttributes: {} }).replace(/\s+/g, " ").trim();
+// Lesson HTML. Images are allowed only if they point at this site's own /media/ addresses, so a lesson can never
+// load something from elsewhere (tracking pixels, hotlinked files) or carry a data: or javascript: address.
+const OWN_IMAGE = /^\/media\/[A-Za-z0-9_-]{22}$/;
 export const cleanBody = html => sanitizeHtml(String(html ?? ""), {
-  allowedTags: ["p", "h3", "ul", "ol", "li", "strong", "em", "br", "a"],
-  allowedAttributes: { a: ["href"] }, allowedSchemes: ["https", "mailto"],
-  transformTags: { a: sanitizeHtml.simpleTransform("a", { rel: "noopener noreferrer", target: "_blank" }) },
+  allowedTags: ["p", "h3", "ul", "ol", "li", "strong", "em", "br", "a", "img"],
+  allowedAttributes: { a: ["href"], img: ["src", "alt", "loading"] }, allowedSchemes: ["https", "mailto"], allowProtocolRelative: false,
+  transformTags: {
+    a: sanitizeHtml.simpleTransform("a", { rel: "noopener noreferrer", target: "_blank" }),
+    img: (tag, attribs) => ({ tagName: "img", attribs: { src: attribs.src || "", alt: (attribs.alt || "").slice(0, 200), loading: "lazy" } }),
+  },
+  exclusiveFilter: frame => frame.tag === "img" && !OWN_IMAGE.test(frame.attribs.src || ""),
 }).trim();
 
 // The model's "answer" index is checked against the cleaned options; invalid questions are dropped and flagged.

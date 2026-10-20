@@ -1,5 +1,5 @@
 import { api } from "../../api.js";
-import { h, notice, when, btn, guarded } from "../../dom.js";
+import { h, notice, when, btn, guarded, add } from "../../dom.js";
 
 export async function resultsTab(body, { id }) {
   const g = await api(`/admin/courses/${id}/gradebook`);
@@ -20,7 +20,7 @@ export async function resultsTab(body, { id }) {
           h("p", null, `Chose: ${r.chosen == null ? "No answer" : r.options[r.chosen]} ${r.correct ? "(correct)" : `(incorrect; correct was ${r.options[r.answer]})`}`)))))) : h("p", { class: "hint" }, "No attempts yet."))));
   };
 
-  body.append(
+  add(body, 
     h("h2", null, "Results"), msg,
     h("div", { class: "stats" }, stat(s.enrolled, "enrolled"), stat(s.attempted, "tried the quiz"), stat(s.passed, `passed (${g.course.passMark}%+)`), stat(s.completed, "completed"),
       stat(s.averageBestPercent == null ? null : `${s.averageBestPercent}%`, "average best score")),
@@ -29,7 +29,7 @@ export async function resultsTab(body, { id }) {
       h("caption", { class: "sr" }, "Results for each enrolled person"),
       h("thead", null, h("tr", null, ["Person", "Lessons done", "Attempts", "Best score", "Passed", "Completed", ""].map(t => h("th", { scope: "col" }, t)))),
       h("tbody", null, g.learners.map(l => { const row = h("tr");
-        row.append(h("th", { scope: "row" }, l.name ? `${l.name} (${l.email})` : l.email),
+        add(row, h("th", { scope: "row" }, l.name ? `${l.name} (${l.email})` : l.email),
           h("td", null, `${l.lessonsCompleted} of ${s.lessons}`), h("td", null, l.attempts), h("td", null, l.bestPercent == null ? "None" : `${l.bestPercent}%`),
           h("td", null, l.passed ? "Yes" : "No"), h("td", null, l.completedAt ? when(l.completedAt) : "No"),
           h("td", null, l.attempts ? btn("Answers", attemptsRow(l, row), "secondary small", { "aria-label": `Show answers for ${l.email}` }) : null));

@@ -47,3 +47,8 @@ export async function guarded(button, into, fn) {
   catch (err) { into?.replaceChildren(notice(err.message)); into?.scrollIntoView({ block: "nearest" }); }
   finally { if (button) button.disabled = false; }
 }
+
+// replaceChildren / append turn a null into the text "null". These skip empty values (and flatten lists) instead.
+const live = kids => kids.flat(Infinity).filter(k => k != null && k !== false);
+export const put = (el, ...kids) => el.replaceChildren(...live(kids));
+export const add = (el, ...kids) => el.append(...live(kids));
