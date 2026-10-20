@@ -12,6 +12,7 @@ import { createEnrolment } from "./services/enrolment.js";
 import { createQuestionAdmin } from "./services/question-admin.js";
 import { createAiAuthoring } from "./services/ai-authoring.js";
 import { mountAdminCourses } from "./routes/admin-courses.js";
+import { mountAdminBackups } from "./routes/admin-backups.js";
 import { mountLearner } from "./routes/learner.js";
 import { mountEditing } from "./editing.js";
 import { mountImages } from "./images.js";
@@ -77,6 +78,7 @@ export function createApp({ db, config, ai, log = createLogger({ level: config.l
   mountEditing({ admin, db, course: courses.get, touch: courses.touch, evaluateEveryone, events });
   mountImages({ app, admin, db, course: courses.get, touch: courses.touch });
   mountAudit({ admin, db });
+  mountAdminBackups({ admin, db, config, events });
   mountTheme({ app, db, requireCapability, events });
   app.use("/api/admin/users", requireCapability("user:manage"), usersRouter({ db, events }));
 

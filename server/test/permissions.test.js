@@ -4,7 +4,7 @@ import { start, quizCourse } from "./helpers.js";
 import { GRANTS, can, capabilityFor } from "../permissions.js";
 
 const STAFF = ["course:author", "course:preview", "enrolment:manage", "results:view", "certificate:manage"];
-const ADMIN_ONLY = ["user:manage", "theme:manage", "audit:view"];
+const ADMIN_ONLY = ["user:manage", "theme:manage", "audit:view", "backup:manage"];
 
 test("permissions: the role by capability matrix", () => {
   const roles = { admin: [...STAFF, ...ADMIN_ONLY], author: STAFF, learner: [] };

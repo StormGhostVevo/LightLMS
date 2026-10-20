@@ -18,6 +18,7 @@ export const GRANTS = {
   "certificate:manage": { roles: ["author", "admin"], does: "Correct, revoke and restore certificates" },
   "user:manage": { roles: ["admin"], does: "Create users, change roles, deactivate, reset passwords" },
   "theme:manage": { roles: ["admin"], does: "Change the site's appearance" },
+  "backup:manage": { roles: ["admin"], does: "See, make and download backups" },
   "audit:view": { roles: ["admin"], does: "Read the audit log" },
 };
 
@@ -54,6 +55,7 @@ export const ADMIN_ROUTES = [
   ["*", /^\/courses\/\d+\/certificates$/, "certificate:manage"],
   ["*", /^\/certificates\/\d+$/, "certificate:manage"],
   ["GET", /^\/audit$/, "audit:view"],
+  ["*", /^\/backups(\/[^/]+\/download)?$/, "backup:manage"],
 ];
 
 /** The capability a request to /api/admin needs, or undefined if the route isn't listed. */

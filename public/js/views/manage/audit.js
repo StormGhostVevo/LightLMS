@@ -19,6 +19,8 @@ const WORDS = {
   "certificate.revoked": "Revoked a certificate",
   "certificate.restored": "Restored a certificate",
   "certificate.name_changed": "Corrected a name on a certificate",
+  "backup.created": "Made a backup",
+  "backup.downloaded": "Downloaded a backup",
   "theme.changed": "Changed the appearance",
   "theme.reset": "Reset the appearance",
   "ai.course_drafted": "Drafted a course with AI",

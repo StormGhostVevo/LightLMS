@@ -395,3 +395,122 @@ test("command line: backup, list, verify, restore, and a refusal while the serve
   assert.match(restored.stdout, /Restored .*pre-restore/s);
   assert.equal(run("nonsense").status, 1);
 });
+
+// ---------------- the admin side ----------------
+import { start } from "./helpers.js";
+import { openBrowser } from "./browser-helpers.js";
+import { backupsView } from "../../public/js/views/manage/backups.js";
+import { PW } from "./helpers.js";
+
+const withBackups = (dir = tmp()) =>
+  start(undefined, { config: { backupDir: join(dir, "backups"), backupKeep: 3, backupEveryHours: 24 } });
+
+test("admin backups: only admins; make one, see it listed with no server paths, download a copy that verifies", async () => {
+  const s = await withBackups();
+  const admin = await s.as("admin");
+  /** @type {(null | "learner" | "author")[]} */
+  const outsiders = [null, "learner", "author"];
+  for (const who of outsiders) {
+    const call = await s.as(who);
+    assert.equal((await call("/api/admin/backups")).status, who ? 403 : 401, `${who} may not list`);
+    assert.equal(
+      (await call("/api/admin/backups", { method: "POST", body: {} })).status,
+      who ? 403 : 401,
+      `${who} may not make`,
+    );
+  }
+
+  assert.deepEqual((await admin("/api/admin/backups")).body, { backups: [], everyHours: 24, keep: 3 });
+  const made = await admin("/api/admin/backups", { method: "POST", body: {} });
+  assert.equal(made.status, 201);
+  assert.match(made.body.name, BACKUP_NAME);
+
+  const list = (await admin("/api/admin/backups")).body;
+  assert.equal(list.backups.length, 1);
+  assert.ok(!JSON.stringify(list).includes(tmpdir()), "the folder's path must not be sent to the browser");
+
+  const download = await s.raw(`/api/admin/backups/${made.body.name}/download`, { cookie: undefined });
+  assert.equal(download.status, 401); // not signed in
+  const login = await s.parse(
+    await s.raw("/api/auth/login", { method: "POST", body: { email: "admin@example.com", password: PW } }),
+  );
+  const cookie = login.setCookie.split(";")[0];
+  const res = await s.raw(`/api/admin/backups/${made.body.name}/download`, { cookie });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("content-type"), "application/gzip");
+  assert.match(res.headers.get("content-disposition"), /attachment; filename="lightlms-/);
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  const file = join(tmp(), "downloaded.sqlite.gz");
+  writeFileSync(file, Buffer.from(await res.arrayBuffer()));
+  assert.equal((await verifyBackup(file)).users, 3); // admin, author and learner
+  s.close();
+});
+
+test("admin backups: names that try to reach other files are refused, and unknown ones are a 404", async () => {
+  const s = await withBackups();
+  const login = await s.parse(
+    await s.raw("/api/auth/login", { method: "POST", body: { email: "admin@example.com", password: PW } }),
+  );
+  const cookie = login.setCookie.split(";")[0];
+  const get = name => s.raw(`/api/admin/backups/${name}/download`, { cookie });
+  for (const evil of [
+    "..%2F..%2Fetc%2Fpasswd",
+    "%2e%2e%2fsecret",
+    "lightlms.sqlite",
+    "lightlms-20260101-000000-000.sqlite.gz%00.txt",
+    "..",
+    "lightlms-20260101-000000-000.sqlite.gz/../x",
+  ])
+    // 400 for a malformed name; ".." is tidied by URL parsing into an unlisted admin route, which is refused with 403.
+    assert.ok([400, 403, 404].includes((await get(evil)).status), evil);
+  assert.equal((await get("lightlms-20260101-000000-000.sqlite.gz")).status, 404); // well-formed but not there
+  s.close();
+});
+
+test("admin backups: making one is audited, old ones are pruned, and a server without backups says so", async () => {
+  const s = await withBackups();
+  const admin = await s.as("admin");
+  for (let i = 0; i < 5; i++) await admin("/api/admin/backups", { method: "POST", body: {} });
+  assert.equal((await admin("/api/admin/backups")).body.backups.length, 3); // keep: 3
+  const login = await s.parse(
+    await s.raw("/api/auth/login", { method: "POST", body: { email: "admin@example.com", password: PW } }),
+  );
+  const cookie = login.setCookie.split(";")[0];
+  const name = (await admin("/api/admin/backups")).body.backups[0].name;
+  await s.raw(`/api/admin/backups/${name}/download`, { cookie });
+  const actions = (await admin("/api/admin/audit?limit=50")).body.entries.map(e => e.action);
+  assert.equal(actions.filter(a => a === "backup.created").length, 5);
+  assert.equal(actions.filter(a => a === "backup.downloaded").length, 1);
+  s.close();
+
+  const bare = await start(); // no backup folder configured
+  assert.equal((await (await bare.as("admin"))("/api/admin/backups")).status, 503);
+  bare.close();
+});
+
+test("browser: the backups page shows what exists, makes a backup on request, and refuses non-admins", async () => {
+  const s = await withBackups();
+  const b = openBrowser(s);
+  try {
+    await b.signIn("author@example.com", PW);
+    await b.show(backupsView, { user: { role: "author" } });
+    assert.match(b.text(), /Only administrators/);
+
+    await b.signIn("admin@example.com", PW);
+    await b.show(backupsView, { user: { role: "admin" } });
+    await b.until(() => /No backups yet/.test(b.text()), "the empty list");
+    assert.match(b.text(), /every 24 hours, and the newest 3 are kept/);
+    assert.match(b.text(), /password hashes/); // the warning about what a backup holds
+    await b.press("Back up now");
+    await b.until(() => /Backup made and checked/.test(b.text()), "the confirmation");
+    assert.equal(b.$$("tbody tr").length, 1);
+    assert.match(
+      b.$("tbody a").getAttribute("href"),
+      /^\/api\/admin\/backups\/lightlms-.*\.sqlite\.gz\/download$/,
+    );
+    await b.settled();
+  } finally {
+    b.close();
+    s.close();
+  }
+});

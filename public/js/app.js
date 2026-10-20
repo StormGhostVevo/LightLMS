@@ -10,6 +10,7 @@ import { manageCourseView } from "./views/manage/course.js";
 import { usersView } from "./views/manage/users.js";
 import { themeView } from "./views/manage/theme.js";
 import { auditView } from "./views/manage/audit.js";
+import { backupsView } from "./views/manage/backups.js";
 
 const root = document.getElementById("app");
 let user = null;
@@ -29,6 +30,7 @@ async function reloadTheme() {
 
 /** @type {[RegExp, (main: HTMLElement, ctx: any) => Promise<any>][]} */
 const routes = [
+  [/^#\/manage\/backups$/, backupsView],
   [/^#\/manage\/audit$/, auditView],
   [/^#\/manage\/theme$/, themeView],
   [/^#\/manage\/users$/, usersView],
