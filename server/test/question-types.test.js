@@ -1,6 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanQuestion, mark, forLearner, yourAnswer, correctAnswer, TYPES } from "../questions.js";
+import { REGISTRY } from "../question-types/index.js";
+import {
+  cleanQuestion,
+  mark,
+  forLearner,
+  yourAnswer,
+  correctAnswer,
+  TYPES,
+} from "../question-types/index.js";
 import { start, publishedCourse, quizCourse, ONE_OF_EACH, rowFor } from "./helpers.js";
 
 test("question types: every type validates, and each rejects what it should", () => {
@@ -290,4 +298,39 @@ test("question types: attempts taken before types existed still display and stil
   assert.deepEqual([staff.correctAnswer, staff.answer, staff.explanation], ["x", 0, "Because."]);
   assert.ok((await author(`/api/admin/courses/${id}/gradebook`)).body.questions.length >= 1);
   s.close();
+});
+
+// Every type must provide the whole contract. A future type that forgets a part fails here, not in front of a learner.
+test("question types: every registered type honours the whole contract", () => {
+  assert.ok(Object.keys(REGISTRY).length >= 6);
+  const rightAnswers = {
+    mcq: 0,
+    true_false: 0,
+    multiple_response: [0, 1, 3],
+    short_answer: "Au",
+    numeric: "12.5",
+    matching: ["Paris", "Rome", "Madrid"],
+  };
+  for (const [key, type] of Object.entries(REGISTRY)) {
+    assert.equal(type.key, key);
+    assert.ok(type.label && typeof type.label === "string", `${key} needs a label`);
+    for (const fn of ["clean", "forAdmin", "forLearner", "mark", "yourAnswer", "correctAnswer"])
+      assert.equal(typeof type[fn], "function", `${key}.${fn}`);
+
+    const row = rowFor(ONE_OF_EACH[key]);
+    assert.ok(cleanQuestion(ONE_OF_EACH[key]).value, `${key}: a valid question is accepted`);
+    assert.ok(
+      cleanQuestion({ type: key, prompt: "Q?" }).error,
+      `${key}: an empty question is refused with a message`,
+    );
+
+    const right = mark(row, rightAnswers[key]);
+    assert.equal(right.correct, true, `${key}: the right answer is marked right`);
+    const none = mark(row, undefined);
+    assert.deepEqual([none.correct, none.chosen], [false, null], `${key}: no answer is marked wrong`);
+    assert.equal(yourAnswer(none), "No answer", `${key}: no answer is described`);
+    assert.ok(correctAnswer(right).length > 0, `${key}: the right answer can be described`);
+    assert.equal(typeof yourAnswer(right), "string");
+    assert.ok(forLearner(row).prompt, `${key}: learners see the prompt`);
+  }
 });

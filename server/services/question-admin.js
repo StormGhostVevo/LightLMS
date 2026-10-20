@@ -1,5 +1,5 @@
 import { HttpError } from "../http.js";
-import { cleanQuestion, toAdmin } from "../questions.js";
+import { cleanQuestion, toAdmin } from "../question-types/index.js";
 import { evaluateEveryone } from "../completion.js";
 
 // The fields of a question that an edit may replace.

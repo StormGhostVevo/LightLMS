@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import sanitizeHtml from "sanitize-html";
-import { TYPES, tidyQuestions } from "./questions.js";
+import { TYPES, tidyQuestions } from "./question-types/index.js";
 import { plain } from "./text.js";
 import { HttpError } from "./http.js";
 export { plain };

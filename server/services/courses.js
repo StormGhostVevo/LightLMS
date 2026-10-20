@@ -1,7 +1,7 @@
 import { HttpError, now } from "../http.js";
 import { plain } from "../text.js";
 import { imageOf } from "../images.js";
-import { toAdmin, forLearner } from "../questions.js";
+import { toAdmin, forLearner } from "../question-types/index.js";
 import { evaluateEveryone, progress } from "../completion.js";
 
 const ENROLMENT = ["manual", "open"];

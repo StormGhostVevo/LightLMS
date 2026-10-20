@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cleanBody } from "../ai.js";
-import { tidyQuestions, cleanQuestion, mark } from "../questions.js";
+import { tidyQuestions, cleanQuestion, mark } from "../question-types/index.js";
 import { plain } from "../text.js";
 import { rowFor } from "./helpers.js";
 

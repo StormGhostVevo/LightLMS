@@ -3,7 +3,7 @@ import { openDb } from "../db.js";
 import { createApp } from "../app.js";
 import { hashPassword } from "../auth.js";
 import { stubProvider } from "../ai.js";
-import { cleanQuestion } from "../questions.js";
+import { cleanQuestion } from "../question-types/index.js";
 
 /**
  * @typedef {{ status: number, body: any, setCookie: string | null }} Reply

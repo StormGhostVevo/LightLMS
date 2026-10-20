@@ -1,5 +1,5 @@
 import { rateLimit } from "express-rate-limit";
-import { mark, yourAnswer, correctAnswer } from "./questions.js";
+import { mark, yourAnswer, correctAnswer } from "./question-types/index.js";
 import { now, bad } from "./http.js";
 
 // Spreadsheet apps run cells that start with these as formulas, so defang them in exports.

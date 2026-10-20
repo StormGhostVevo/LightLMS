@@ -6,7 +6,7 @@ import { hashPassword } from "../auth.js";
 import { createCourses } from "../services/courses.js";
 import { createEnrolment } from "../services/enrolment.js";
 import { createQuestionAdmin } from "../services/question-admin.js";
-import { insertQuestion, cleanQuestion } from "../questions.js";
+import { insertQuestion, cleanQuestion } from "../question-types/index.js";
 
 // These tests call the services directly: no server, no HTTP, no cookies.
 async function setup() {

@@ -1,7 +1,7 @@
 import { HttpError, now } from "../http.js";
 import { plain } from "../text.js";
 import { MIN_SOURCE, MAX_SOURCE, tidyDraft } from "../ai.js";
-import { TYPES, tidyQuestions, insertQuestion } from "../questions.js";
+import { TYPES, tidyQuestions, insertQuestion } from "../question-types/index.js";
 
 /**
  * The two things the AI does for authors. Everything it writes is untrusted: it is cleaned and validated first,

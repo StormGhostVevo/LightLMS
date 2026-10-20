@@ -1,5 +1,5 @@
 import { cleanBody, plain } from "./ai.js";
-import { cleanQuestion, insertQuestion, toAdmin } from "./questions.js";
+import { cleanQuestion, insertQuestion, toAdmin } from "./question-types/index.js";
 import { cleanupLessonImages } from "./images.js";
 import { now, bad } from "./http.js";
 import { target } from "./events.js";
