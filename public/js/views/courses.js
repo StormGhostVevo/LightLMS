@@ -26,7 +26,12 @@ export async function coursesView(main, { user }) {
     h("h1", null, user.name ? `Welcome, ${user.name}` : "My courses"),
     msg,
     mine.length
-      ? h("div", { class: "grid" }, mine.map(card))
+      ? h(
+          "section",
+          null,
+          h("h2", { class: "sr" }, "Your courses"),
+          h("div", { class: "grid" }, mine.map(card)),
+        )
       : h(
           "p",
           { class: "hint" },

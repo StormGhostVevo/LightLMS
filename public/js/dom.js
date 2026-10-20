@@ -72,3 +72,6 @@ export async function guarded(button, into, fn) {
 const live = kids => kids.flat(Infinity).filter(k => k != null && k !== false);
 export const put = (el, ...kids) => el.replaceChildren(...live(kids));
 export const add = (el, ...kids) => el.append(...live(kids));
+
+/** A column header. An empty header (a column of buttons) gets a hidden "Actions", so screen readers can name the column. */
+export const th = text => h("th", { scope: "col" }, text || h("span", { class: "sr" }, "Actions"));

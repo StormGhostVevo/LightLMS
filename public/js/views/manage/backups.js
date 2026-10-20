@@ -1,5 +1,5 @@
 import { api } from "../../api.js";
-import { h, notice, when, put, add, guarded } from "../../dom.js";
+import { h, notice, when, put, add, guarded, th } from "../../dom.js";
 
 const size = bytes =>
   bytes > 1024 * 1024
@@ -90,7 +90,7 @@ export async function backupsView(main, { user }) {
           h(
             "tr",
             null,
-            ["Made", "Kind", "Size", ""].map(t => h("th", { scope: "col" }, t)),
+            ["Made", "Kind", "Size", ""].map(t => th(t)),
           ),
         ),
         body,

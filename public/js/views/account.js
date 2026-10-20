@@ -44,7 +44,7 @@ export function passwordView({ forced = false, onDone } = {}) {
         }
       },
     },
-    h("h1", null, forced ? "Choose your own password" : "Change password"),
+    h(forced ? "h1" : "h2", null, forced ? "Choose your own password" : "Change password"),
     forced ? h("p", null, "You're using a temporary password. Choose a new one to continue.") : null,
     msg,
     h("label", { for: "cur" }, forced ? "Temporary password" : "Current password"),

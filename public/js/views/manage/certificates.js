@@ -1,5 +1,5 @@
 import { api } from "../../api.js";
-import { h, notice, when, btn, guarded, put, add } from "../../dom.js";
+import { h, notice, when, btn, guarded, put, add, th } from "../../dom.js";
 
 export async function certificatesTab(body, { id, course }) {
   const list = await api(`/admin/courses/${id}/certificates`);
@@ -33,9 +33,7 @@ export async function certificatesTab(body, { id, course }) {
               h(
                 "tr",
                 null,
-                ["Person", "Name on certificate", "Certificate", "Issued", "Status", ""].map(t =>
-                  h("th", { scope: "col" }, t),
-                ),
+                ["Person", "Name on certificate", "Certificate", "Issued", "Status", ""].map(t => th(t)),
               ),
             ),
             h(

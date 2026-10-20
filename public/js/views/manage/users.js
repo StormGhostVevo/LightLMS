@@ -1,5 +1,5 @@
 import { api } from "../../api.js";
-import { h, notice, field, guarded, when, btn, put } from "../../dom.js";
+import { h, notice, field, guarded, when, btn, put, th } from "../../dom.js";
 
 export async function usersView(main, { user, flash, okMessage }) {
   if (user.role !== "admin")
@@ -86,7 +86,7 @@ export async function usersView(main, { user, flash, okMessage }) {
           h(
             "tr",
             null,
-            ["Email", "Name", "Role", "Status", "Last sign-in", ""].map(t => h("th", { scope: "col" }, t)),
+            ["Email", "Name", "Role", "Status", "Last sign-in", ""].map(t => th(t)),
           ),
         ),
         h(
@@ -156,7 +156,7 @@ export async function usersView(main, { user, flash, okMessage }) {
                     {
                       href: `/api/admin/users/${u.id}/export`,
                       download: "",
-                      "aria-label": `Download all data held about ${u.email}`,
+                      "aria-label": `Export data for ${u.email}`,
                     },
                     "Export data",
                   ),

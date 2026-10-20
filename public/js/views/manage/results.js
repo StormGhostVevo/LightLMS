@@ -1,5 +1,5 @@
 import { api } from "../../api.js";
-import { h, when, btn, guarded, add } from "../../dom.js";
+import { h, when, btn, guarded, add, th } from "../../dom.js";
 
 export async function resultsTab(body, { id }) {
   const g = await api(`/admin/courses/${id}/gradebook`);
@@ -83,7 +83,7 @@ export async function resultsTab(body, { id }) {
                 "tr",
                 null,
                 ["Person", "Lessons done", "Attempts", "Best score", "Passed", "Completed", ""].map(t =>
-                  h("th", { scope: "col" }, t),
+                  th(t),
                 ),
               ),
             ),
@@ -138,7 +138,7 @@ export async function resultsTab(body, { id }) {
                 h(
                   "tr",
                   null,
-                  ["Question", "Answered", "Correct"].map(t => h("th", { scope: "col" }, t)),
+                  ["Question", "Answered", "Correct"].map(t => th(t)),
                 ),
               ),
               h(

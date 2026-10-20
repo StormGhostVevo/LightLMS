@@ -1,5 +1,5 @@
 import { api } from "../../api.js";
-import { h, notice, field, guarded, when, btn, put, add } from "../../dom.js";
+import { h, notice, field, guarded, when, btn, put, add, th } from "../../dom.js";
 
 export async function peopleTab(body, { id, course }) {
   const people = await api(`/admin/courses/${id}/enrolments`);
@@ -70,7 +70,7 @@ export async function peopleTab(body, { id, course }) {
               h(
                 "tr",
                 null,
-                ["Email", "Name", "Enrolled", "How", ""].map(t => h("th", { scope: "col" }, t)),
+                ["Email", "Name", "Enrolled", "How", ""].map(t => th(t)),
               ),
             ),
             h(

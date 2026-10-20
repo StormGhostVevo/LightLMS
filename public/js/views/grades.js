@@ -1,5 +1,5 @@
 import { api } from "../api.js";
-import { h, when, put } from "../dom.js";
+import { h, when, put, th } from "../dom.js";
 
 export async function gradesView(main) {
   const grades = await api("/grades");
@@ -20,9 +20,7 @@ export async function gradesView(main) {
               h(
                 "tr",
                 null,
-                ["Course", "Attempts", "Best score", "Pass mark", "Result", "Last attempt"].map(t =>
-                  h("th", { scope: "col" }, t),
-                ),
+                ["Course", "Attempts", "Best score", "Pass mark", "Result", "Last attempt"].map(t => th(t)),
               ),
             ),
             h(

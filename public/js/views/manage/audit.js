@@ -1,5 +1,5 @@
 import { api } from "../../api.js";
-import { h, notice, when, put, add, btn, guarded } from "../../dom.js";
+import { h, notice, when, put, add, btn, guarded, th } from "../../dom.js";
 
 // What each recorded action means, in words. Anything not listed is shown as it was recorded.
 const WORDS = {
@@ -107,7 +107,7 @@ export async function auditView(main, { user }) {
           h(
             "tr",
             null,
-            ["When", "Who", "What", "About", "Details"].map(t => h("th", { scope: "col" }, t)),
+            ["When", "Who", "What", "About", "Details"].map(t => th(t)),
           ),
         ),
         body,

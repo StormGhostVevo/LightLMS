@@ -1,4 +1,5 @@
 import { JSDOM } from "jsdom";
+import axe from "axe-core";
 
 /**
  * A pretend browser for testing the pages in public/js. It is a real DOM (jsdom) wired to a real test server, so a
@@ -6,9 +7,13 @@ import { JSDOM } from "jsdom";
  * It does not do layout or paint, so it checks behaviour and content, not looks.
  *
  * @param {import("./helpers.js").TestApp} app
+ * @param {{ html?: string }} [options] a whole page to start from (for example public/index.html); by default an empty page
  */
-export function openBrowser(app) {
-  const dom = new JSDOM("<!doctype html><body></body>", { url: `${app.base}/`, pretendToBeVisual: true });
+export function openBrowser(app, { html } = {}) {
+  const dom = new JSDOM(html ?? "<!doctype html><body></body>", {
+    url: `${app.base}/`,
+    pretendToBeVisual: true,
+  });
   const { window } = dom;
   const { document } = window;
 
@@ -60,8 +65,9 @@ export function openBrowser(app) {
   document.addEventListener("signed-out", () => events.push("signed-out"));
   document.addEventListener("must-change-password", () => events.push("must-change-password"));
 
-  const main = document.createElement("main");
-  document.body.append(main);
+  // With a whole page, the page itself makes its own <main>; otherwise one is made to show a view in.
+  const main = html ? document.body : document.createElement("main");
+  if (!html) document.body.append(main);
 
   /** Waits until `check` returns something truthy (pages fetch and render asynchronously). */
   const until = async (check, what = "the page to change", ms = 3000) => {
@@ -100,6 +106,27 @@ export function openBrowser(app) {
       el.dispatchEvent(new window.Event("change", { bubbles: true }));
     },
     until,
+    /**
+     * Checks what is currently shown against the WCAG 2.1 and 2.2 level A and AA rules (axe-core).
+     * Colour contrast can't be measured without a real screen; the default colours are checked separately.
+     * @returns {Promise<string[]>} one readable line per problem found
+     */
+    async axeProblems(context = main) {
+      if (!window.axe) window.eval(axe.source);
+      const result = await window.axe.run(context, {
+        runOnly: {
+          type: "tag",
+          values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"],
+        },
+        // Both need a real screen or canvas. Contrast is checked on the palettes; label-in-name is checked by hand in the tests.
+        rules: { "color-contrast": { enabled: false }, "label-content-name-mismatch": { enabled: false } },
+      });
+      return result.violations.flatMap(v =>
+        v.nodes.map(
+          n => `${v.id} (${v.impact}): ${v.help} | ${n.target.join(" ")} | ${n.html.slice(0, 120)}`,
+        ),
+      );
+    },
     /** Waits out any pending work, then fails if the page shows a leaked "null" or "undefined". */
     async settled() {
       await new Promise(r => setTimeout(r, 60));

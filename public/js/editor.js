@@ -7,9 +7,9 @@ const COMMANDS = [
   ["Bold", "B", () => document.execCommand("bold")],
   ["Italic", "I", () => document.execCommand("italic")],
   ["Heading", "H", () => document.execCommand("formatBlock", false, "h3")],
-  ["Paragraph", "¶", () => document.execCommand("formatBlock", false, "p")],
-  ["Bulleted list", "• List", () => document.execCommand("insertUnorderedList")],
-  ["Numbered list", "1. List", () => document.execCommand("insertOrderedList")],
+  ["Paragraph", "P", () => document.execCommand("formatBlock", false, "p")],
+  ["Bulleted list", "Bulleted list", () => document.execCommand("insertUnorderedList")],
+  ["Numbered list", "Numbered list", () => document.execCommand("insertOrderedList")],
   [
     "Link",
     "Link",
@@ -19,7 +19,7 @@ const COMMANDS = [
       else if (url) alert("Links must start with https:// or mailto:");
     },
   ],
-  ["Remove link", "Unlink", () => document.execCommand("unlink")],
+  ["Remove link", "Remove link", () => document.execCommand("unlink")],
 ];
 
 /**
