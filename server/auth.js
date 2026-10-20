@@ -4,6 +4,7 @@ import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "no
 import { promisify } from "node:util";
 import { now, bad } from "./http.js";
 import { target } from "./events.js";
+import { createPrivacy } from "./services/privacy.js";
 
 const scrypt = promisify(scryptCb);
 const SESSION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -232,7 +233,7 @@ export function authRouter({ db, config, events, throttle = createLoginThrottle(
 }
 
 // Admin-only user management. Passwords are generated here and shown once; the admin passes them on.
-export function usersRouter({ db, events }) {
+export function usersRouter({ db, events, privacy = createPrivacy(db) }) {
   const r = express.Router();
   const get = id => db.prepare("SELECT * FROM users WHERE id = ?").get(id);
   const activeAdmins = () =>
@@ -299,5 +300,38 @@ export function usersRouter({ db, events }) {
     }
     res.json({ id: u.id, role, active, ...(temporaryPassword ? { temporaryPassword } : {}) });
   });
+
+  // Everything held about one person, as a download. Recorded in the audit log.
+  r.get("/:id/export", (req, res) => {
+    const data = privacy.exportPerson(Number(req.params.id));
+    events.emit("user.data_exported", {
+      actor: req.user,
+      target: target("user", data.profile.id, data.profile.email),
+    });
+    res.set({
+      "Content-Disposition": `attachment; filename="person-${data.profile.id}-data.json"`,
+      "Cache-Control": "no-store",
+    });
+    res.json(data);
+  });
+
+  // Erases a person. The caller must type the person's email to confirm, so it can't happen by a stray click.
+  r.post("/:id/erase", (req, res) => {
+    const u = get(req.params.id);
+    if (!u) return bad(res, "User not found", 404);
+    if (
+      typeof req.body?.confirm !== "string" ||
+      req.body.confirm.trim().toLowerCase() !== u.email.toLowerCase()
+    )
+      return bad(res, "Type the person's email address to confirm.");
+    const result = privacy.erasePerson(u.id, { actorId: req.user.id });
+    events.emit("user.erased", {
+      actor: req.user,
+      target: target("user", u.id, privacy.erasedEmail(u.id)),
+      detail: result.removed,
+    });
+    res.json(result);
+  });
+
   return r;
 }

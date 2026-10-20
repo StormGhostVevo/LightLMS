@@ -1,7 +1,7 @@
 import { api } from "../../api.js";
 import { h, notice, field, guarded, when, btn, put } from "../../dom.js";
 
-export async function usersView(main, { user, flash }) {
+export async function usersView(main, { user, flash, okMessage }) {
   if (user.role !== "admin")
     return void put(main, h("h1", null, "Manage users"), notice("Only administrators can manage users."));
   const users = await api("/admin/users");
@@ -37,7 +37,8 @@ export async function usersView(main, { user, flash }) {
   );
   const create = h("button", { type: "submit" }, "Create user");
 
-  const redraw = shown => usersView(main, { user, flash: shown });
+  // The page is rebuilt after a change, so anything to show afterwards travels with it.
+  const redraw = (shown, ok) => usersView(main, { user, flash: shown, okMessage: ok });
 
   put(
     main,
@@ -150,6 +151,30 @@ export async function usersView(main, { user, flash }) {
                     "secondary small",
                     { "aria-label": `${u.active ? "Deactivate" : "Reactivate"} ${u.email}` },
                   ),
+                  h(
+                    "a",
+                    {
+                      href: `/api/admin/users/${u.id}/export`,
+                      download: "",
+                      "aria-label": `Download all data held about ${u.email}`,
+                    },
+                    "Export data",
+                  ),
+                  btn(
+                    "Erase",
+                    async e => {
+                      const typed = prompt(
+                        `This removes ${u.email}'s account, answers and results for good. Certificates they earned stay valid without their name. Backups made earlier keep the old data until they are rotated out.\n\nType their email address to confirm.`,
+                      );
+                      if (typed === null) return;
+                      const r = await guarded(e.target, msg, () =>
+                        api(`/admin/users/${u.id}/erase`, { method: "POST", body: { confirm: typed } }),
+                      );
+                      if (r) await redraw(undefined, "That person has been erased.");
+                    },
+                    "danger small",
+                    { "aria-label": `Erase ${u.email}` },
+                  ),
                   btn(
                     "Reset password",
                     async e => {
@@ -172,4 +197,5 @@ export async function usersView(main, { user, flash }) {
     ),
   );
   if (flash) showPassword(...flash);
+  if (okMessage) put(msg, notice(okMessage, "ok"));
 }

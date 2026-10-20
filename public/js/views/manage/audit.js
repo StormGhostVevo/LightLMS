@@ -9,6 +9,8 @@ const WORDS = {
   "user.reactivated": "Reactivated a user",
   "user.password_reset": "Reset a password",
   "user.password_changed": "Changed their own password",
+  "user.data_exported": "Exported a person's data",
+  "user.erased": "Erased a person",
   "course.created": "Created a course",
   "course.settings_changed": "Changed course settings",
   "course.published": "Published a course",

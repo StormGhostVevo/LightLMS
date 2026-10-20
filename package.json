@@ -21,7 +21,9 @@
     "backup": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server/backup-cli.js backup",
     "backups": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server/backup-cli.js backups",
     "verify-backup": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server/backup-cli.js verify-backup",
-    "restore": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server/backup-cli.js restore"
+    "restore": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server/backup-cli.js restore",
+    "export-user": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server/privacy-cli.js export",
+    "erase-user": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server/privacy-cli.js erase"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.134.0",

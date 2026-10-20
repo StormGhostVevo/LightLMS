@@ -32,6 +32,9 @@ export function openBrowser(app) {
     "Node",
     "getSelection",
     "matchMedia",
+    "prompt",
+    "confirm",
+    "alert",
   ];
   const saved = Object.fromEntries(names.map(n => [n, Object.getOwnPropertyDescriptor(globalThis, n)]));
   for (const n of names) {
