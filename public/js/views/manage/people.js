@@ -3,8 +3,7 @@ import { h, notice, field, guarded, when, btn, put, add } from "../../dom.js";
 
 export async function peopleTab(body, { id, course }) {
   const people = await api(`/admin/courses/${id}/enrolments`);
-  const msg = h("div"),
-    report = h("div");
+  const msg = h("div");
   const emails = h("textarea", { rows: 5, placeholder: "one email address per line" });
   const enrolBtn = h("button", { type: "submit" }, "Enrol");
 

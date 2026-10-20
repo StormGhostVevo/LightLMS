@@ -2,6 +2,7 @@ import { h } from "./dom.js";
 
 // A small rich-text box for lessons: bold, italic, heading, lists, links. It produces HTML, but the server
 // sanitises whatever arrives, so this only has to be convenient, not trusted.
+/** @type {[string, string, () => unknown][]} name, button text, what it does */
 const COMMANDS = [
   ["Bold", "B", () => document.execCommand("bold")],
   ["Italic", "I", () => document.execCommand("italic")],
@@ -21,6 +22,11 @@ const COMMANDS = [
   ["Remove link", "Unlink", () => document.execCommand("unlink")],
 ];
 
+/**
+ * @param {string | undefined} initialHtml
+ * @param {string} label accessible name for the editing area
+ * @param {{ uploadImage?: (file: File) => Promise<string> }} [options] gives back the new picture's address; without it there is no Picture button
+ */
 export function richEditor(initialHtml, label, { uploadImage } = {}) {
   const area = h("div", {
     class: "editor-area",

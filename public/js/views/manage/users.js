@@ -37,7 +37,7 @@ export async function usersView(main, { user, flash }) {
   );
   const create = h("button", { type: "submit" }, "Create user");
 
-  const redraw = flash => usersView(main, { user, flash });
+  const redraw = shown => usersView(main, { user, flash: shown });
 
   put(
     main,

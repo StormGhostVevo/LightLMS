@@ -107,13 +107,11 @@ export function mountQuiz({ app, admin, db, course, visible, enrolled, requireLo
         throw err;
       }
       evaluate(db, c, req.user.id); // a pass may complete the course
-      res
-        .status(201)
-        .json({
-          ...shape(attempt, c, reveals(c, req.user.id)),
-          attemptsUsed: used(c.id, req.user.id),
-          maxAttempts: c.max_attempts,
-        });
+      res.status(201).json({
+        ...shape(attempt, c, reveals(c, req.user.id)),
+        attemptsUsed: used(c.id, req.user.id),
+        maxAttempts: c.max_attempts,
+      });
     },
   );
 

@@ -8,6 +8,7 @@ import { peopleTab } from "./people.js";
 import { resultsTab } from "./results.js";
 import { certificatesTab } from "./certificates.js";
 
+/** @type {[string, string, (body: HTMLElement, ctx: any) => void | Promise<any>][]} */
 const TABS = [
   ["lessons", "Lessons", lessonsTab],
   ["questions", "Questions", questionsTab],

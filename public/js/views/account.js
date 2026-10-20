@@ -2,7 +2,8 @@ import { api } from "../api.js";
 import { h, notice, when, put, add } from "../dom.js";
 
 // Used for the forced change after a temporary password, and from the Account page.
-export function passwordView({ forced = false, onDone }) {
+/** @param {{ forced?: boolean, onDone?: () => void }} options */
+export function passwordView({ forced = false, onDone } = {}) {
   const msg = h("div");
   const current = h("input", {
     id: "cur",

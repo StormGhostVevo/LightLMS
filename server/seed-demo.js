@@ -85,7 +85,7 @@ const safety = course({
     ],
   ],
 });
-const open = course({
+course({
   title: "Getting started (open to everyone)",
   enrolment: "open",
   description: "A short intro anyone can join.",

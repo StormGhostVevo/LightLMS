@@ -25,6 +25,7 @@ const LABELS = {
   header: "Top bar",
   headerText: "Top bar text",
 };
+/** @type {[string, string, string[], string][]} id, title, the colours in the set, hint */
 const GROUPS = [
   ["page", "Page colours", ["background", "surface", "text", "link"], "The page, cards, text and links."],
   ["buttons", "Button colours", ["button", "buttonText"], "Solid buttons such as Sign in or Submit."],
@@ -245,7 +246,9 @@ export async function themeView(main, { user, reloadTheme }) {
   const applyPreset = colours => {
     state.colours = { ...colours };
     GROUPS.forEach(([id, , keys]) => {
-      document.getElementById(`use-${id}`).checked = keys.every(k => state.colours[k]);
+      /** @type {HTMLInputElement} */ (document.getElementById(`use-${id}`)).checked = keys.every(
+        k => state.colours[k],
+      );
     });
     syncInputs();
     paint();

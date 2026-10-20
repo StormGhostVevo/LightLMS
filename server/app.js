@@ -218,7 +218,7 @@ export function createApp({ db, config, ai }) {
       b.certificate === undefined
         ? c.certificate_enabled
         : typeof b.certificate === "boolean"
-          ? +b.certificate
+          ? Number(b.certificate)
           : null;
     if (certificate === null) return bad(res, "certificate must be true or false");
     const completion = b.completion ?? c.completion_rule;
@@ -400,12 +400,12 @@ export function createApp({ db, config, ai }) {
   });
 
   mountQuiz({ app, admin, db, course, visible, enrolled, requireLogin, evaluate });
-  mountCompletion({ app, db, course, visible, enrolled, requireLogin });
+  mountCompletion({ app, db, visible, enrolled, requireLogin });
   mountCertificates({ app, admin, db, config, course, visible, requireLogin });
 
   app.use("/", express.static(new URL("../public", import.meta.url).pathname));
 
-  app.use((err, req, res, next) => {
+  app.use((err, req, res, _next) => {
     if (err.type === "entity.too.large") return bad(res, "That request is too large", 413);
     if (err.type === "entity.parse.failed") return bad(res, "Invalid JSON");
     console.error(err);

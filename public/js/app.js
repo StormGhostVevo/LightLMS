@@ -21,11 +21,12 @@ async function reloadTheme() {
   } catch {
     /* keep the old name */
   }
-  document.getElementById("theme-css").href = `/theme.css?v=${Date.now()}`;
+  /** @type {HTMLLinkElement} */ (document.getElementById("theme-css")).href = `/theme.css?v=${Date.now()}`;
   const brand = document.querySelector(".brand");
   if (brand) brand.textContent = siteName || "lightlms";
 }
 
+/** @type {[RegExp, (main: HTMLElement, ctx: any) => Promise<any>][]} */
 const routes = [
   [/^#\/manage\/theme$/, themeView],
   [/^#\/manage\/users$/, usersView],

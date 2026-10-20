@@ -66,7 +66,7 @@ export const evaluateEveryone = (db, c) =>
     .all(c.id)
     .forEach(uid => evaluate(db, c, uid));
 
-export function mountCompletion({ app, db, course, visible, enrolled, requireLogin }) {
+export function mountCompletion({ app, db, visible, enrolled, requireLogin }) {
   const view = (c, userId) => {
     evaluate(db, c, userId);
     return progress(db, c, userId);

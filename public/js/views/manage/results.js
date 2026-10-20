@@ -1,5 +1,5 @@
 import { api } from "../../api.js";
-import { h, notice, when, btn, guarded, add } from "../../dom.js";
+import { h, when, btn, guarded, add } from "../../dom.js";
 
 export async function resultsTab(body, { id }) {
   const g = await api(`/admin/courses/${id}/gradebook`);

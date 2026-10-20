@@ -6,8 +6,14 @@ export class ApiError extends Error {
   }
 }
 
-// Every call is same-origin JSON. A 401 means the session ended, so the app shows sign-in again.
+/**
+ * Every call is same-origin JSON. A 401 means the session ended, so the app shows sign-in again.
+ * @param {string} path the part after /api, such as "/courses"
+ * @param {{ method?: string, body?: unknown }} [options]
+ * @returns {Promise<any>} the parsed JSON, or null for an empty response
+ */
 export async function api(path, { method = "GET", body } = {}) {
+  /** @type {RequestInit & { headers: Record<string, string> }} */
   const init = { method, credentials: "same-origin", headers: {} };
   if (method !== "GET") {
     init.headers["content-type"] = "application/json";
