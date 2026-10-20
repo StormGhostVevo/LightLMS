@@ -6,6 +6,7 @@ material and generates quiz questions, always reviewed by a person before learne
 Built as: Node 22+ (Express), SQLite (better-sqlite3), plain JavaScript, no build step. One process, one database file.
 
 Moodle's features are rebuilt from scratch (clean-room, no Moodle code). See [docs/moodle-feature-map.md](docs/moodle-feature-map.md).
+How it is built and how to change it: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Working agreement: [CONTRIBUTING.md](CONTRIBUTING.md). Changes: [CHANGELOG.md](CHANGELOG.md).
 For an honest look at where the project stands, its maintainability compared with Moodle, known problems and what to build next, see [docs/review-and-roadmap.md](docs/review-and-roadmap.md).
 
 ## Learner interface
@@ -102,7 +103,8 @@ Try it with sample data (development only; it refuses to run in production):
     npm install
     cp .env.example .env
     npm run dev       # http://localhost:3000, AI_PROVIDER=stub by default (no external calls)
-    npm test
+    npm test          # the tests
+    npm run check     # formatting, lint, types and tests: the same as CI
 
 Set `AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` to use the real AI. Pasted text is then sent to Anthropic, so only
 use material you are cleared to share.

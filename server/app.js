@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import express from "express";
 import helmet from "helmet";
 import { errorHandler } from "./http.js";
@@ -44,7 +45,20 @@ export function createApp({ db, config, ai }) {
       /^\/api\/admin\/courses\/\d+\/images?$/.test(req.path) && ["PUT", "POST"].includes(req.method);
     return (isImageUpload ? imageJson : smallJson)(req, res, next);
   });
-  app.get("/health", (req, res) => res.json({ ok: true }));
+  // For uptime checks and deploys: is the process up, can it reach its database, and which version and schema is it running?
+  const version = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
+  app.get("/health", (req, res) => {
+    try {
+      const schema = db
+        .prepare("SELECT name FROM schema_migrations ORDER BY name DESC LIMIT 1")
+        .pluck()
+        .get();
+      res.json({ ok: true, version, schema });
+    } catch (err) {
+      console.error("Health check failed:", err);
+      res.status(503).json({ ok: false });
+    }
+  });
   app.use("/api", jsonOnly, sessionMiddleware(db));
   // Someone on a temporary password can only use the sign-in and password routes until they choose their own.
   app.use("/api", (req, res, next) =>

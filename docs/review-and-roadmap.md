@@ -1,5 +1,8 @@
 # Review and roadmap
 
+> **Update, 20/10/2026 (evening): Phase A is done.** See "Phase A status" at the end. Sections 1 to 4 below describe the
+> project as it was when this review was written, so the problem list is a record of what was found, not what remains.
+
 Written 20/10/2026, after the first full build. It records what exists, how it compares with Moodle on maintainability,
 the problems found when reading the code with fresh eyes, and what could be built next. Every number below was measured
 on the repository on that date.
@@ -134,3 +137,23 @@ recertification, course export and import, content versions, then the AI additio
 2. How many users should it comfortably serve in the first year? It decides whether SQLite stays.
 3. Is sending course material to an external AI service cleared? It decides whether the AI features are switched on in production.
 4. Where will it be hosted, and who is responsible for backups?
+
+## 7. Phase A status (foundations), 20/10/2026
+
+| Item | Result |
+|---|---|
+| `trust proxy`, session purge, config validation | Done. `TRUST_PROXY` (default 1 in production), hourly sweep, every setting validated at start-up |
+| Formatter, linter, CI | Done. Prettier, ESLint (including `no-shadow`), a GitHub Actions workflow (written and its syntax checked, but not yet run on GitHub) |
+| Shared HTTP helpers, service layer | Done for courses, enrolment, question review and AI authoring. `app.js` went from 408 lines to about 100. Quiz, certificates, theme, images and auth still keep routes and rules together |
+| Capability-based permissions | Done, with a fail-closed admin route table and tests that sweep every admin route. Still three fixed roles and no per-course ownership: any author can still edit any course |
+| Events and audit log | Done, with an admin page. Covers users, courses, enrolment, certificates, appearance and AI use. Lesson and question edits are not audited, to avoid noise |
+| Tests split by area, unit and browser tests | Done. 90 tests in 11 files. Browser tests use jsdom, not a real browser, so they check behaviour and content but not appearance. I confirmed they catch the two earlier bugs |
+| Question types as a registry | Done, with a contract test |
+| Type checking | Done as JSDoc checked by `tsc` with `strict` off. Turning `strict` on is a sensible later step |
+
+Problems from section 3: items 1 (proxy), 2 (sessions), 4 (audit) and 6 (logic in routes, partly) are resolved or improved.
+Still open: authors can touch every course (3), no backup or deploy path (5), performance ceilings (7), published edits are
+live (8), nothing verified against the real AI or an accessibility audit (9), no email (10).
+
+**Next: Phase B, launch readiness.** Backups and a tested restore, Dockerfile and deploy notes, structured logging,
+migration checksums, a written security review, an accessibility pass, and running the CI workflow on GitHub for the first time.

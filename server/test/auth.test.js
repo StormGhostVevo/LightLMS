@@ -195,3 +195,22 @@ test("proxy: with one trusted proxy the rate limit counts each visitor separatel
   assert.deepEqual(await tries(1), { sameVisitor: 429, otherVisitor: 401 }); // others are unaffected
   assert.deepEqual(await tries(0), { sameVisitor: 429, otherVisitor: 429 }); // everyone shares one address
 });
+
+test("health: reports the version and database schema, and says so when the database is unreachable", async () => {
+  const s = await start();
+  const ok = await s.parse(await s.raw("/health"));
+  assert.equal(ok.status, 200);
+  assert.deepEqual(Object.keys(ok.body).sort(), ["ok", "schema", "version"]);
+  assert.match(ok.body.version, /^\d+\.\d+\.\d+$/);
+  assert.match(ok.body.schema, /^\d{3}_.+\.sql$/); // the latest migration that has run
+  s.db.close(); // the database goes away
+  const original = console.error;
+  console.error = () => {};
+  try {
+    const down = await s.parse(await s.raw("/health"));
+    assert.deepEqual([down.status, down.body], [503, { ok: false }]);
+  } finally {
+    console.error = original;
+  }
+  s.close();
+});
