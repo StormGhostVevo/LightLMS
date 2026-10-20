@@ -47,6 +47,6 @@ Status: **done** (in the repo), **next** (planned first), **later**, **skip** (d
 1. ~~Users, roles and sessions~~ (done).
 2. ~~Enrolment and per-learner access~~ (done).
 3. ~~Attempts, pass marks, explanations, gradebook~~ (done).
-4. More question types. UI: learner side done; author and admin side next.
+4. ~~UI for learners, authors and admins~~ (done). More question types next.
 5. ~~Completion tracking~~ (done), ~~certificates~~ (done).
 6. Reports, then notifications.

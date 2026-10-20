@@ -16,6 +16,23 @@ password). Everything the server sends is rendered as text; the only HTML shown 
 already sanitised. It works with the strict content security policy (no inline scripts or styles on the page itself),
 keyboard navigation, light and dark mode, and phone widths.
 
+## Author and admin interface
+
+Authors and admins get a **Manage** link. **Manage courses** lists every course and lets you create a blank one or draft
+one with AI from pasted material (the page says whether text is sent to an external AI service). Each course has tabs:
+
+- **Lessons**: add, edit (a small rich-text editor: bold, italic, headings, lists, links, pasted as plain text), reorder, delete.
+- **Questions**: add by hand, generate more with AI, edit, reorder, approve or unapprove. AI questions start as drafts and
+  learners never see a draft; "Approve all" asks you to confirm you've read them.
+- **People**: enrol by pasting email addresses (unknown addresses are reported), remove people.
+- **Results**: enrolled, tried, passed, completed, average score, per-person answers, questions most often missed, CSV download.
+- **Certificates**: correct the printed name, revoke or restore.
+- **Settings**: enrolment, completion rule, pass mark, attempts, when answers show, certificates, delete a draft.
+
+Publish and Unpublish are at the top of every course. Admins also get **Manage users**: create users (the temporary password
+is shown once), change roles, deactivate or reactivate, reset passwords. Everything here is enforced by the server as
+well, so hiding a button is never the only protection.
+
 Try it with sample data (development only; it refuses to run in production):
 
     npm run seed-demo   # admin@demo.test, author@demo.test, learner@demo.test, password demo-password-1

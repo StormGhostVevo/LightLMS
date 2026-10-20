@@ -27,3 +27,23 @@ export function progressBar(percent, label) {
 
 // A status message that screen readers announce when it changes.
 export const notice = (text, kind = "error") => h("p", { class: `notice ${kind}`, role: kind === "error" ? "alert" : "status" }, text);
+
+let counter = 0;
+export const uid = () => `f${++counter}`;
+
+// A labelled form control. Gives the control an id if it has none, so the label is always attached.
+export function field(label, control, hint) {
+  if (!control.id) control.id = uid();
+  return h("div", { class: "field" }, h("label", { for: control.id }, label), control, hint ? h("p", { class: "hint" }, hint) : null);
+}
+
+export const btn = (text, onclick, cls = "secondary", extra = {}) => h("button", { type: "button", class: cls, onclick, ...extra }, text);
+
+// Runs an async action with the button disabled and errors shown in `into`. Returns the result, or undefined on error.
+export async function guarded(button, into, fn) {
+  if (button) button.disabled = true;
+  into?.replaceChildren();
+  try { return await fn(); }
+  catch (err) { into?.replaceChildren(notice(err.message)); into?.scrollIntoView({ block: "nearest" }); }
+  finally { if (button) button.disabled = false; }
+}

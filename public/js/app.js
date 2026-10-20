@@ -5,11 +5,17 @@ import { passwordView, accountView } from "./views/account.js";
 import { coursesView } from "./views/courses.js";
 import { courseView } from "./views/course.js";
 import { gradesView } from "./views/grades.js";
+import { manageView } from "./views/manage/index.js";
+import { manageCourseView } from "./views/manage/course.js";
+import { usersView } from "./views/manage/users.js";
 
 const root = document.getElementById("app");
 let user = null;
 
 const routes = [
+  [/^#\/manage\/users$/, usersView],
+  [/^#\/manage\/course\/(\d+)(?:\/(\w+))?$/, manageCourseView],
+  [/^#\/manage$/, manageView],
   [/^#\/course\/(\d+)$/, courseView],
   [/^#\/grades$/, gradesView],
   [/^#\/account$/, accountView],
@@ -17,11 +23,12 @@ const routes = [
 ];
 
 function shell(main) {
-  const link = (href, text) => h("a", { href, "aria-current": location.hash === href || (href === "#/" && !location.hash) ? "page" : null }, text);
+  const here = location.hash || "#/";
+  const link = (href, text) => h("a", { href, "aria-current": here === href || (href === "#/manage" && here.startsWith("#/manage")) ? "page" : null }, text);
   clear(root).append(
     h("header", { class: "bar" },
       h("a", { class: "brand", href: "#/" }, "lightlms"),
-      h("nav", { "aria-label": "Main" }, link("#/", "My courses"), link("#/grades", "Grades"), link("#/account", "Account")),
+      h("nav", { "aria-label": "Main" }, link("#/", "My courses"), link("#/grades", "Grades"), link("#/account", "Account"), user.role !== "learner" ? link("#/manage", "Manage") : null),
       h("button", { class: "link", onclick: signOut }, "Sign out")),
     main);
   return main;
