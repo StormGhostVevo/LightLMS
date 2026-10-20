@@ -1,7 +1,8 @@
 import express from "express";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
-import { authRouter, usersRouter, sessionMiddleware, requireLogin, requireRole, jsonOnly } from "./auth.js";
+import { authRouter, usersRouter, sessionMiddleware, requireLogin, jsonOnly } from "./auth.js";
+import { can, requireCapability, adminGuard } from "./permissions.js";
 import { mountCertificates } from "./certificates.js";
 import { mountTheme } from "./theme.js";
 import { mountImages, imageOf } from "./images.js";
@@ -36,7 +37,7 @@ export function createApp({ db, config, ai }) {
 
   // ---- authoring (authors and admins) ----
   const admin = express.Router();
-  admin.use(requireRole("author", "admin"));
+  admin.use(adminGuard);
 
   const aiLimit = rateLimit({
     windowMs: 10 * 60_000,
@@ -313,18 +314,21 @@ export function createApp({ db, config, ai }) {
 
   mountEditing({ admin, db, course, touch, evaluateEveryone });
   mountImages({ app, admin, db, course, touch });
-  mountTheme({ app, db, requireRole });
-  app.use("/api/admin/users", requireRole("admin"), usersRouter({ db }));
+  mountTheme({ app, db, requireCapability });
+  app.use("/api/admin/users", requireCapability("user:manage"), usersRouter({ db }));
   app.use("/api/admin", admin);
 
   // ---- learner (signed in; published courses only; correct answers never leave the server) ----
-  const isStaff = u => u.role === "author" || u.role === "admin";
   const enrolled = (courseId, userId) =>
     !!db.prepare("SELECT 1 FROM enrolments WHERE course_id = ? AND user_id = ?").get(courseId, userId);
   // A published course the person may read: enrolled, or staff previewing. Anything else looks like it doesn't exist.
   const visible = (req, res) => {
     const c = course(req.params.id);
-    if (!c || c.status !== "published" || !(enrolled(c.id, req.user.id) || isStaff(req.user))) {
+    if (
+      !c ||
+      c.status !== "published" ||
+      !(enrolled(c.id, req.user.id) || can(req.user, "course:preview", { courseId: c.id }))
+    ) {
       bad(res, "Course not found", 404);
       return null;
     }
@@ -404,5 +408,6 @@ export function createApp({ db, config, ai }) {
   app.use("/", express.static(new URL("../public", import.meta.url).pathname));
 
   app.use(errorHandler);
+  app.locals.adminRouter = admin; // lets the tests check that every admin route has a listed capability
   return app;
 }

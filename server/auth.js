@@ -85,14 +85,6 @@ export function sessionMiddleware(db) {
 }
 
 export const requireLogin = (req, res, next) => (req.user ? next() : bad(res, "Please sign in", 401));
-export const requireRole =
-  (...roles) =>
-  (req, res, next) =>
-    !req.user
-      ? bad(res, "Please sign in", 401)
-      : roles.includes(req.user.role)
-        ? next()
-        : bad(res, "You don't have access to that", 403);
 
 // Cross-site form posts can't set a JSON content type, so requiring it on writes blocks CSRF alongside SameSite=Lax.
 export const jsonOnly = (req, res, next) =>

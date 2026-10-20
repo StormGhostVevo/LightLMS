@@ -100,7 +100,7 @@ export function themeCss(t) {
   return `:root{${v.join(";")};${scheme}}\nhtml{font-size:${SIZES[t.fontSize]}}\n`;
 }
 
-export function mountTheme({ app, db, requireRole }) {
+export function mountTheme({ app, db, requireCapability }) {
   const read = () => {
     const row = db.prepare("SELECT value FROM settings WHERE key = 'theme'").pluck().get();
     if (!row) return DEFAULT_THEME;
@@ -121,7 +121,7 @@ export function mountTheme({ app, db, requireRole }) {
     res.type("css").set("Cache-Control", "no-cache").send(themeCss(read())),
   );
 
-  app.put("/api/admin/theme", requireRole("admin"), (req, res) => {
+  app.put("/api/admin/theme", requireCapability("theme:manage"), (req, res) => {
     const r = cleanTheme(req.body);
     if (r.error) return bad(res, r.error);
     db.prepare(
@@ -129,7 +129,7 @@ export function mountTheme({ app, db, requireRole }) {
     ).run(JSON.stringify(r.value), now());
     res.json(r.value);
   });
-  app.delete("/api/admin/theme", requireRole("admin"), (req, res) => {
+  app.delete("/api/admin/theme", requireCapability("theme:manage"), (req, res) => {
     db.prepare("DELETE FROM settings WHERE key = 'theme'").run();
     res.json(DEFAULT_THEME);
   });
