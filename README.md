@@ -55,6 +55,31 @@ but unguessable, so don't use a cover image for anything sensitive. Replacing or
 
 - `PUT|DELETE /api/admin/courses/:id/image` `{ data: base64, alt, decorative }`, `GET /media/:key`
 
+### Question types
+
+Six types, each marked all or nothing (a question is right only if the whole answer is right). Unanswered counts as wrong.
+
+| Type | The learner | Counts as correct |
+|---|---|---|
+| Multiple choice | picks one option | the right option |
+| True or false | picks True or False | the right one |
+| Select all that apply | ticks any number of options | exactly the right set (not one missing or extra) |
+| Short answer | types a word or phrase | matches any accepted answer; capitals and extra spaces are ignored |
+| Number | types a number | within the tolerance you set (0 for exact); `1,000` is read as one thousand |
+| Matching | matches each item to its pair from a shuffled list | every pair right |
+
+Authors choose the type when adding or editing a question, and can change a question's type later (the new type's fields are
+required). **Generate with AI** can write a mix of types; everything it writes is a draft until approved, like before.
+Attempts keep a snapshot of each question and its answer key, so editing or deleting a question later never changes an old
+result, and attempts taken before types existed still display. Answers are revealed according to the course's rule for every
+type. Learners are never sent the answer key; matching choices are shuffled in a fixed order that doesn't give the pairing away.
+
+- Learner answers: `POST /api/courses/:id/quiz` `{ answers: { questionId: answer } }` where the answer is an option number
+  (choice, true/false: 0 is True), a list of option numbers (select all), text (short answer), a number or text (number),
+  or a list of chosen matches in item order (matching).
+- Staff: `POST /api/admin/courses/:id/questions` and `PATCH /api/admin/questions/:id` take `type` plus that type's fields
+  (`options`/`answer`, `answers`, `accepted`, `value`/`tolerance`, `pairs`); `POST .../quiz/generate` takes `types`.
+
 ### Pictures in lessons
 
 The lesson editor has a **Picture** button. Pick an image, describe it (the description becomes its alt text; leave it blank only

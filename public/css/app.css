@@ -129,3 +129,10 @@ code { background: var(--bg); border: 1px solid var(--border); padding: .1rem .4
 @media (min-width: 52rem) { .theme-layout { display: grid; grid-template-columns: 1fr 22rem; gap: 1.5rem; align-items: start; } .theme-layout .sticky { position: sticky; top: 1rem; } }
 
 .brand-line { margin: 0; color: var(--muted); font-weight: 600; }
+
+/* ---- question types ---- */
+.question input[type=text] { width: 100%; max-width: 24rem; padding: .55rem .65rem; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+.match-row { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin: .5rem 0; } .match-row label { margin: 0; font-weight: 400; flex: 1 1 10rem; }
+.match-row select { flex: 1 1 12rem; width: auto; }
+.pair-row { display: flex; gap: .5rem; align-items: center; margin-bottom: .4rem; } .pair-row input { flex: 1; } .pair-row button { margin-top: 0; }
+.pair-row .arrow { color: var(--muted); }

@@ -17,7 +17,7 @@ export async function resultsTab(body, { id }) {
         h("summary", null, `${when(a.submittedAt)}: ${a.score} of ${a.total} (${a.percent}%), ${a.passed ? "passed" : "not passed"}`),
         h("ol", { class: "results" }, a.results.map(r => h("li", { class: r.correct ? "right" : "wrong" },
           h("p", { class: "q" }, r.prompt),
-          h("p", null, `Chose: ${r.chosen == null ? "No answer" : r.options[r.chosen]} ${r.correct ? "(correct)" : `(incorrect; correct was ${r.options[r.answer]})`}`)))))) : h("p", { class: "hint" }, "No attempts yet."))));
+          h("p", null, `Answered: ${r.yourAnswer} ${r.correct ? "(correct)" : `(incorrect; correct was ${r.correctAnswer})`}`)))))) : h("p", { class: "hint" }, "No attempts yet."))));
   };
 
   add(body, 

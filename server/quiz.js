@@ -1,4 +1,5 @@
 import { rateLimit } from "express-rate-limit";
+import { mark, yourAnswer, correctAnswer } from "./questions.js";
 
 const now = () => new Date().toISOString();
 const bad = (res, msg, status = 400) => res.status(status).json({ error: msg });
@@ -18,30 +19,28 @@ export function mountQuiz({ app, admin, db, course, visible, enrolled, requireLo
     db.prepare("SELECT COUNT(*) FROM attempts WHERE course_id = ? AND user_id = ?").pluck().get(courseId, userId);
   const reveals = (c, userId) => c.show_answers === "always" || (c.show_answers === "after_pass" && passedBefore(c.id, userId));
 
-  // What a learner sees of an attempt. Correct options and explanations only appear when the course allows it.
+  // What a learner sees of an attempt. The correct answer and explanation only appear when the course allows it.
+  // Attempts taken before there were question types have no `type`; they are multiple choice.
   const shape = (a, c, reveal) => ({
     id: a.id, courseId: a.course_id, score: a.score, total: a.total, percent: a.percent, passed: !!a.passed, passMark: a.pass_mark, submittedAt: a.submitted_at,
     results: JSON.parse(a.detail).map(d => ({
-      id: d.id, prompt: d.prompt, options: d.options, chosen: d.chosen, correct: d.correct,
-      ...(reveal ? { answer: d.answer, explanation: d.explanation } : {}),
+      id: d.id, type: d.type || "mcq", prompt: d.prompt, options: d.options, chosen: d.chosen, yourAnswer: yourAnswer(d), correct: d.correct,
+      ...(reveal ? { ...((d.type || "mcq") === "mcq" || d.type === "true_false" ? { answer: d.key?.answer ?? d.answer } : {}), correctAnswer: correctAnswer(d), explanation: d.explanation } : {}),
     })),
   });
 
-  // Body: { answers: { "<questionId>": <optionIndex> } }
+  // Body: { answers: { "<questionId>": <answer> } }. The answer depends on the question type: an option number (multiple choice, true or false),
+  // a list of option numbers (multiple response), text (short answer), a number or text (number), or a list of chosen matches (matching).
   app.post("/api/courses/:id/quiz", requireLogin, rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: true, legacyHeaders: false }), (req, res) => {
     const c = visible(req, res);
     if (!c) return;
     if (!enrolled(c.id, req.user.id)) return bad(res, "Enrol in this course to take the quiz", 403);
     const given = req.body?.answers;
-    if (!given || typeof given !== "object" || Array.isArray(given)) return bad(res, "Send answers as an object of questionId to option index");
+    if (!given || typeof given !== "object" || Array.isArray(given)) return bad(res, "Send answers as an object of questionId to answer");
     const qs = db.prepare("SELECT * FROM questions WHERE course_id = ? AND status = 'approved' ORDER BY position").all(c.id);
     if (!qs.length) return bad(res, "This course doesn't have a quiz yet", 409);
 
-    const detail = qs.map(q => {
-      const options = JSON.parse(q.options);
-      const chosen = Number.isInteger(given[q.id]) && given[q.id] >= 0 && given[q.id] < options.length ? given[q.id] : null; // unanswered counts as wrong
-      return { id: q.id, prompt: q.prompt, options, chosen, answer: q.answer, correct: chosen === q.answer, explanation: q.explanation };
-    });
+    const detail = qs.map(q => mark(q, given[q.id]));   // unanswered counts as wrong
     const score = detail.filter(d => d.correct).length;
     const percent = Math.round((score / detail.length) * 100);
 

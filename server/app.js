@@ -8,11 +8,11 @@ import { mountImages, imageOf } from "./images.js";
 import { mountEditing } from "./editing.js";
 import { mountQuiz } from "./quiz.js";
 import { mountCompletion, evaluateEveryone, evaluate, progress } from "./completion.js";
-import { AiError, MIN_SOURCE, MAX_SOURCE, tidyDraft, tidyQuestions, plain } from "./ai.js";
+import { AiError, MIN_SOURCE, MAX_SOURCE, tidyDraft, plain } from "./ai.js";
+import { TYPES, cleanQuestion, tidyQuestions, insertQuestion, toAdmin, forLearner } from "./questions.js";
 
 const now = () => new Date().toISOString();
 const bad = (res, msg, status = 400) => res.status(status).json({ error: msg });
-const toQuestion = r => ({ id: r.id, prompt: r.prompt, options: JSON.parse(r.options), answer: r.answer, explanation: r.explanation, source: r.source, status: r.status });
 
 export function createApp({ db, config, ai }) {
   const app = express();
@@ -41,10 +41,7 @@ export function createApp({ db, config, ai }) {
     const ins = db.prepare("INSERT INTO lessons (course_id, position, title, body) VALUES (?, ?, ?, ?)");
     lessons.forEach((l, i) => ins.run(courseId, i, l.title, l.body));
   };
-  const insertQuestions = (courseId, qs, source, start = 0) => {
-    const ins = db.prepare("INSERT INTO questions (course_id, position, prompt, options, answer, explanation, source) VALUES (?, ?, ?, ?, ?, ?, ?)");
-    qs.forEach((q, i) => ins.run(courseId, start + i, q.prompt, JSON.stringify(q.options), q.answer, q.explanation, source));
-  };
+  const insertQuestions = (courseId, qs, source, start = 0) => qs.forEach((q, i) => insertQuestion(db, courseId, start + i, q, source));
 
   admin.get("/ai/status", (req, res) => res.json({ provider: ai.name, model: ai.model ?? null, sendsToThirdParty: !!ai.external }));
 
@@ -56,7 +53,7 @@ export function createApp({ db, config, ai }) {
     const { image_key, image_alt, ...rest } = c;
     res.json({ ...rest, image: imageOf(c),
       lessons: db.prepare("SELECT id, position, title, body FROM lessons WHERE course_id = ? ORDER BY position").all(c.id),
-      questions: db.prepare("SELECT * FROM questions WHERE course_id = ? ORDER BY position").all(c.id).map(toQuestion) });
+      questions: db.prepare("SELECT * FROM questions WHERE course_id = ? ORDER BY position").all(c.id).map(toAdmin) });
   });
 
   // Draft a whole course (lessons plus draft questions) from pasted source material.
@@ -85,9 +82,13 @@ export function createApp({ db, config, ai }) {
     const lessons = db.prepare("SELECT title, body FROM lessons WHERE course_id = ? ORDER BY position").all(c.id);
     if (!lessons.length) return bad(res, "Add a lesson first");
     const count = Math.min(10, Math.max(1, Number.parseInt(req.body?.count, 10) || 5));
+    const types = req.body?.types === undefined ? ["mcq"] : req.body.types;
+    if (!Array.isArray(types) || !types.length || types.some(t => !TYPES[t])) return bad(res, "Choose which question types to include");
     try {
       const flags = [];
-      const qs = tidyQuestions((await ai.generateQuiz({ lessons, count })).questions, flags);
+      const made = await ai.generateQuiz({ lessons, count, types: [...new Set(types)] });
+      flags.push(...(made.flags || []).map(plain).filter(Boolean).slice(0, 10));      // the AI's own "please check this" notes
+      const qs = tidyQuestions(made.questions, flags);
       const start = db.prepare("SELECT COALESCE(MAX(position) + 1, 0) FROM questions WHERE course_id = ?").pluck().get(c.id);
       db.transaction(() => { insertQuestions(c.id, qs, "ai", start); touch(c.id); })();
       res.status(201).json({ added: qs.length, flags });
@@ -99,15 +100,18 @@ export function createApp({ db, config, ai }) {
     const q = db.prepare("SELECT * FROM questions WHERE id = ?").get(req.params.id);
     if (!q) return bad(res, "Question not found", 404);
     const b = req.body || {};
-    const [fixed] = tidyQuestions([{ prompt: b.prompt ?? q.prompt, options: b.options ?? JSON.parse(q.options), answer: b.answer ?? q.answer, explanation: b.explanation ?? q.explanation }]);
-    if (!fixed) return bad(res, "A question needs a prompt, 2 or more distinct options and a valid correct answer");
     const status = b.status === undefined ? q.status : b.status;
     if (!["draft", "approved"].includes(status)) return bad(res, "Status must be draft or approved");
-    db.prepare("UPDATE questions SET prompt = ?, options = ?, answer = ?, explanation = ?, status = ? WHERE id = ?")
-      .run(fixed.prompt, JSON.stringify(fixed.options), fixed.answer, fixed.explanation, status, q.id);
+    // Fields that are sent replace the question's; the rest stay as they were. Changing the type needs everything the new type requires.
+    const fields = ["type", "prompt", "options", "answer", "answers", "accepted", "value", "tolerance", "pairs", "explanation"];
+    const fixed = cleanQuestion({ ...toAdmin(q), ...Object.fromEntries(fields.filter(f => b[f] !== undefined).map(f => [f, b[f]])) });
+    if (fixed.error) return bad(res, fixed.error);
+    const v = fixed.value;
+    db.prepare("UPDATE questions SET type = ?, prompt = ?, options = ?, answer = ?, spec = ?, explanation = ?, status = ? WHERE id = ?")
+      .run(v.type, v.prompt, JSON.stringify(v.options), v.answer, JSON.stringify(v.spec), v.explanation, status, q.id);
     touch(q.course_id);
     evaluateEveryone(db, course(q.course_id));   // approving or unapproving changes whether the course has a quiz
-    res.json(toQuestion(db.prepare("SELECT * FROM questions WHERE id = ?").get(q.id)));
+    res.json(toAdmin(db.prepare("SELECT * FROM questions WHERE id = ?").get(q.id)));
   });
 
   admin.delete("/questions/:id", (req, res) => {
@@ -225,8 +229,7 @@ export function createApp({ db, config, ai }) {
     if (!c) return;
     res.json({ id: c.id, title: c.title, description: c.description, image: imageOf(c), passMark: c.pass_mark, maxAttempts: c.max_attempts,
       lessons: db.prepare("SELECT id, title, body FROM lessons WHERE course_id = ? ORDER BY position").all(c.id),
-      questions: db.prepare("SELECT id, prompt, options FROM questions WHERE course_id = ? AND status = 'approved' ORDER BY position").all(c.id)
-        .map(q => ({ id: q.id, prompt: q.prompt, options: JSON.parse(q.options) })) });
+      questions: db.prepare("SELECT * FROM questions WHERE course_id = ? AND status = 'approved' ORDER BY position").all(c.id).map(forLearner) });
   });
 
   mountQuiz({ app, admin, db, course, visible, enrolled, requireLogin, evaluate });

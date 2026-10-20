@@ -12,7 +12,7 @@ Status: **done** (in the repo), **next** (planned first), **later**, **skip** (d
 | Resources: Page / Book | Rich-text content, chaptered | `lessons` (sanitised HTML); add, edit, delete, reorder | done |
 | Quiz: multiple choice | Auto-marked questions | `questions`, marked server-side, answers never sent to learners | done |
 | Question bank | Reusable questions | Questions are per course for now; a shared bank with tags later | later |
-| Quiz: other types | True/false, short answer, matching, numeric | Add `kind` column; true/false and short answer first | next |
+| Quiz: other types | True/false, short answer, matching, numeric | Done: true/false, select all, short answer, number, matching (all or nothing marking). Partial credit, essay and fill-in-the-blank later | done |
 | Quiz settings | Attempts, time limit, pass mark, shuffle | Pass mark, attempt limit and answer-reveal rule done; time limit and shuffle later | done |
 | Quiz attempts and review | Stored attempts, feedback | `attempts` table with question snapshots; explanations per reveal rule | done |
 | Gradebook | Scores per learner/course | Per-course gradebook, per-learner attempts, CSV export, hardest questions | done |
@@ -47,6 +47,6 @@ Status: **done** (in the repo), **next** (planned first), **later**, **skip** (d
 1. ~~Users, roles and sessions~~ (done).
 2. ~~Enrolment and per-learner access~~ (done).
 3. ~~Attempts, pass marks, explanations, gradebook~~ (done).
-4. ~~UI for learners, authors and admins~~ (done). More question types next.
+4. ~~UI for learners, authors and admins~~ and ~~more question types~~ (done).
 5. ~~Completion tracking~~ (done), ~~certificates~~ (done).
 6. Reports, then notifications.

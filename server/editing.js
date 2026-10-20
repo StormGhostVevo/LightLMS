@@ -1,4 +1,5 @@
-import { cleanBody, plain, tidyQuestions } from "./ai.js";
+import { cleanBody, plain } from "./ai.js";
+import { cleanQuestion, insertQuestion, toAdmin } from "./questions.js";
 import { cleanupLessonImages } from "./images.js";
 
 const now = () => new Date().toISOString();
@@ -6,7 +7,6 @@ const bad = (res, msg, status = 400) => res.status(status).json({ error: msg });
 
 export const LIMITS = { lessons: 100, questions: 200, bodyChars: 100_000 };
 
-const toQuestion = r => ({ id: r.id, prompt: r.prompt, options: JSON.parse(r.options), answer: r.answer, explanation: r.explanation, source: r.source, status: r.status });
 
 // Authoring: create and delete courses, add/edit/delete/reorder lessons and questions (staff only).
 // Edits to a published course are live straight away; there is no draft copy of a published course.
@@ -113,17 +113,16 @@ export function mountEditing({ admin, db, course, touch, evaluateEveryone }) {
     const c = course(req.params.id);
     if (!c) return bad(res, "Course not found", 404);
     const b = req.body || {};
-    const [q] = tidyQuestions([{ prompt: b.prompt, options: b.options, answer: b.answer, explanation: b.explanation }]);
-    if (!q) return bad(res, "A question needs a prompt, 2 or more distinct options and a valid correct answer");
+    const r = cleanQuestion(b);
+    if (r.error) return bad(res, r.error);
     const status = b.status ?? "approved";
     if (!["draft", "approved"].includes(status)) return bad(res, "Status must be draft or approved");
     if (db.prepare("SELECT COUNT(*) FROM questions WHERE course_id = ?").pluck().get(c.id) >= LIMITS.questions) return bad(res, `A course can have up to ${LIMITS.questions} questions`, 409);
     const pos = db.prepare("SELECT COALESCE(MAX(position) + 1, 0) FROM questions WHERE course_id = ?").pluck().get(c.id);
-    const { lastInsertRowid } = db.prepare("INSERT INTO questions (course_id, position, prompt, options, answer, explanation, source, status) VALUES (?, ?, ?, ?, ?, ?, 'manual', ?)")
-      .run(c.id, pos, q.prompt, JSON.stringify(q.options), q.answer, q.explanation, status);
+    const id = insertQuestion(db, c.id, pos, r.value, "manual", status);
     touch(c.id);
     recheck(c.id);
-    res.status(201).json(toQuestion(db.prepare("SELECT * FROM questions WHERE id = ?").get(lastInsertRowid)));
+    res.status(201).json(toAdmin(db.prepare("SELECT * FROM questions WHERE id = ?").get(id)));
   });
 
   admin.put("/courses/:id/questions/order", (req, res) => {

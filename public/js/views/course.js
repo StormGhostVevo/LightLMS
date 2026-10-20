@@ -70,20 +70,46 @@ export async function courseView(main, { params }) {
             } }, "Review"))))) : null);
   }
 
+  // One control per question type. Each returns the element to show and a function that reads the learner's answer
+  // (undefined while it is still unanswered).
+  function control(q, i) {
+    const legend = h("legend", null, `${i + 1}. ${q.prompt}`);
+    const name = `q${q.id}`;
+    if (q.type === "multiple_response") {
+      const boxes = q.options.map((opt, k) => h("input", { type: "checkbox", value: k }));
+      return { el: h("fieldset", { class: "question" }, legend, h("p", { class: "hint" }, "Select all that apply."),
+          q.options.map((opt, k) => h("label", { class: "choice" }, boxes[k], h("span", null, opt)))),
+        read: () => { const picked = boxes.filter(b => b.checked).map(b => Number(b.value)); return picked.length ? picked : undefined; } };
+    }
+    if (q.type === "short_answer" || q.type === "numeric") {
+      const input = h("input", { type: "text", maxlength: q.type === "numeric" ? 40 : 200, autocomplete: "off", spellcheck: "false",
+        inputmode: q.type === "numeric" ? "decimal" : null, id: `in-${q.id}` });
+      return { el: h("fieldset", { class: "question" }, legend,
+          h("label", { for: input.id, class: "sr" }, "Your answer"), input,
+          q.type === "numeric" ? h("p", { class: "hint" }, "Enter a number.") : null),
+        read: () => input.value.trim() || undefined };
+    }
+    if (q.type === "matching") {
+      const selects = q.items.map((item, k) => h("select", { id: `m-${q.id}-${k}` }, h("option", { value: "" }, "Choose..."), q.choices.map(c => h("option", { value: c }, c))));
+      return { el: h("fieldset", { class: "question" }, legend, h("p", { class: "hint" }, "Match each item with its pair."),
+          q.items.map((item, k) => h("div", { class: "match-row" }, h("label", { for: selects[k].id }, item), selects[k]))),
+        read: () => (selects.every(sel => sel.value) ? selects.map(sel => sel.value) : undefined) };
+    }
+    // multiple choice and true or false
+    return { el: h("fieldset", { class: "question" }, legend,
+        q.options.map((opt, k) => h("label", { class: "choice" }, h("input", { type: "radio", name, value: k }), h("span", null, opt)))),
+      read: () => { const picked = quizBody.querySelector(`input[name="${name}"]:checked`); return picked ? Number(picked.value) : undefined; } };
+  }
+
   function form() {
     const error = h("div");
-    const groups = course.questions.map((q, i) => h("fieldset", { class: "question" },
-      h("legend", null, `${i + 1}. ${q.prompt}`),
-      q.options.map((opt, k) => h("label", { class: "choice" }, h("input", { type: "radio", name: `q${q.id}`, value: k }), h("span", null, opt)))));
+    const controls = course.questions.map(control);
     const submit = h("button", { type: "submit" }, "Submit answers");
     put(quizBody, h("form", { novalidate: true, onsubmit: async e => {
         e.preventDefault();
-        put(error, );
+        put(error);
         const answers = {};
-        for (const q of course.questions) {
-          const picked = e.target.querySelector(`input[name="q${q.id}"]:checked`);
-          if (picked) answers[q.id] = Number(picked.value);
-        }
+        course.questions.forEach((q, i) => { const a = controls[i].read(); if (a !== undefined) answers[q.id] = a; });
         const missing = course.questions.length - Object.keys(answers).length;
         if (missing) { add(error, notice(`Answer every question before submitting (${missing} left).`)); error.scrollIntoView({ block: "center" }); return; }   // an unanswered question would use up an attempt
         submit.disabled = true;
@@ -95,21 +121,21 @@ export async function courseView(main, { params }) {
           result(attempt);
         } catch (err) { submit.disabled = false; add(error, notice(err.message)); }
       } },
-      error, groups, h("p", null, submit, " ", h("button", { type: "button", class: "secondary", onclick: intro }, "Cancel"))));
+      error, controls.map(c => c.el), h("p", null, submit, " ", h("button", { type: "button", class: "secondary", onclick: intro }, "Cancel"))));
     quizBody.scrollIntoView({ block: "start" });
   }
 
   function result(a) {
-    const revealed = a.results.some(r => "answer" in r);
-    put(quizBody, 
+    const revealed = a.results.some(r => "correctAnswer" in r);
+    put(quizBody,
       h("div", { role: "status", class: `notice ${a.passed ? "ok" : "error"}` },
         `You scored ${a.score} of ${a.total} (${a.percent}%). The pass mark is ${a.passMark}%. `, h("strong", null, a.passed ? "Passed." : "Not passed yet.")),
       h("p", { class: "hint" }, `Attempt taken ${when(a.submittedAt)}.`),
       !revealed ? h("p", { class: "hint" }, "The correct answers aren't shown for this attempt.") : null,
       h("ol", { class: "results" }, a.results.map(r => h("li", { class: r.correct ? "right" : "wrong" },
         h("p", { class: "q" }, r.prompt),
-        h("p", null, `Your answer: ${r.chosen == null ? "No answer" : r.options[r.chosen]} `, h("strong", null, r.correct ? "(Correct)" : "(Incorrect)")),
-        revealed && !r.correct ? h("p", null, `Correct answer: ${r.options[r.answer]}`) : null,
+        h("p", null, `Your answer: ${r.yourAnswer} `, h("strong", null, r.correct ? "(Correct)" : "(Incorrect)")),
+        revealed && !r.correct ? h("p", null, `Correct answer: ${r.correctAnswer}`) : null,
         revealed && r.explanation ? h("p", { class: "hint" }, r.explanation) : null))),
       h("p", null, attemptsLeft() ? h("button", { onclick: form }, "Try again") : null, " ", h("button", { class: "secondary", onclick: intro }, "Back to quiz")));
     quizBody.scrollIntoView({ block: "start" });
