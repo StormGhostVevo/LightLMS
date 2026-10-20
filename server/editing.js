@@ -1,9 +1,7 @@
 import { cleanBody, plain } from "./ai.js";
 import { cleanQuestion, insertQuestion, toAdmin } from "./questions.js";
 import { cleanupLessonImages } from "./images.js";
-
-const now = () => new Date().toISOString();
-const bad = (res, msg, status = 400) => res.status(status).json({ error: msg });
+import { now, bad } from "./http.js";
 
 export const LIMITS = { lessons: 100, questions: 200, bodyChars: 100_000 };
 

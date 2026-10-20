@@ -1,7 +1,5 @@
 import { issueCertificate } from "./certificates.js";
-
-const now = () => new Date().toISOString();
-const bad = (res, msg, status = 400) => res.status(status).json({ error: msg });
+import { now, bad } from "./http.js";
 
 // Where one person stands on one course, against the course's completion rule.
 export function progress(db, c, userId) {

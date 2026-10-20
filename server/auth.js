@@ -2,14 +2,13 @@ import express from "express";
 import { rateLimit } from "express-rate-limit";
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
+import { now, bad } from "./http.js";
 
 const scrypt = promisify(scryptCb);
 const SESSION_MS = 7 * 24 * 60 * 60 * 1000;
 export const ROLES = ["admin", "author", "learner"];
 export const MIN_PASSWORD = 10;
 
-const now = () => new Date().toISOString();
-const bad = (res, msg, status = 400) => res.status(status).json({ error: msg });
 const sha = s => createHash("sha256").update(s).digest("hex");
 
 // ---- passwords: scrypt, stored as "scrypt$<salt>$<hash>" ----

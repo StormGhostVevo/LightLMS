@@ -1,8 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { plain } from "./ai.js";
-
-const now = () => new Date().toISOString();
-const bad = (res, msg, status = 400) => res.status(status).json({ error: msg });
+import { now, bad } from "./http.js";
 
 export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 

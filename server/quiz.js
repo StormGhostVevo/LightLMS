@@ -1,8 +1,6 @@
 import { rateLimit } from "express-rate-limit";
 import { mark, yourAnswer, correctAnswer } from "./questions.js";
-
-const now = () => new Date().toISOString();
-const bad = (res, msg, status = 400) => res.status(status).json({ error: msg });
+import { now, bad } from "./http.js";
 
 // Spreadsheet apps run cells that start with these as formulas, so defang them in exports.
 const csvCell = v => {

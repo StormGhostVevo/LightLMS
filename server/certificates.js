@@ -1,9 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { rateLimit } from "express-rate-limit";
 import { plain } from "./ai.js";
-
-const now = () => new Date().toISOString();
-const bad = (res, msg, status = 400) => res.status(status).json({ error: msg });
+import { now, bad } from "./http.js";
 
 // 32 characters with no look-alikes (no 0/O, 1/I), so each byte maps evenly and codes are easy to read out.
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

@@ -10,9 +10,7 @@ import { mountQuiz } from "./quiz.js";
 import { mountCompletion, evaluateEveryone, evaluate, progress } from "./completion.js";
 import { AiError, MIN_SOURCE, MAX_SOURCE, tidyDraft, plain } from "./ai.js";
 import { TYPES, cleanQuestion, tidyQuestions, insertQuestion, toAdmin, forLearner } from "./questions.js";
-
-const now = () => new Date().toISOString();
-const bad = (res, msg, status = 400) => res.status(status).json({ error: msg });
+import { now, bad, errorHandler } from "./http.js";
 
 export function createApp({ db, config, ai }) {
   const app = express();
@@ -405,11 +403,6 @@ export function createApp({ db, config, ai }) {
 
   app.use("/", express.static(new URL("../public", import.meta.url).pathname));
 
-  app.use((err, req, res, _next) => {
-    if (err.type === "entity.too.large") return bad(res, "That request is too large", 413);
-    if (err.type === "entity.parse.failed") return bad(res, "Invalid JSON");
-    console.error(err);
-    bad(res, "Something went wrong", 500);
-  });
+  app.use(errorHandler);
   return app;
 }

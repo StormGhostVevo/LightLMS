@@ -1,7 +1,7 @@
+import { now, bad } from "./http.js";
+
 // The site's look, set by an admin: colours (in groups, so a theme can't end up unreadable), a font and a text size.
 // It is served as a stylesheet of CSS variables, so the pages themselves never change.
-const now = () => new Date().toISOString();
-const bad = (res, msg, status = 400) => res.status(status).json({ error: msg });
 
 export const FONTS = {
   system: { label: "System default", stack: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' },
