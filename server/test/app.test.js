@@ -2,7 +2,8 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { openDb } from "../db.js";
 import { createApp } from "../app.js";
-import { hashPassword } from "../auth.js";
+import { hashPassword, createSession, purgeExpiredSessions } from "../auth.js";
+import { loadConfig } from "../config.js";
 import { contrast, cleanTheme } from "../theme.js";
 import { stubProvider, cleanBody } from "../ai.js";
 import { tidyQuestions, cleanQuestion, mark, forLearner, toAdmin, yourAnswer, correctAnswer, TYPES } from "../questions.js";
@@ -980,6 +981,49 @@ test("text: plain keeps real characters, so 'R&D' matches what a learner types",
   assert.equal(plain("<script>alert(1)</script>safe"), "safe");
   assert.equal(cleanQuestion({ type: "short_answer", prompt: "Dept?", accepted: ["R&D"] }).value.spec.accepted[0], "R&D");
   assert.equal(mark(rowFor({ type: "short_answer", prompt: "Dept?", accepted: ["R&D"] }), "r&d").correct, true);
+});
+
+// ---- foundations: configuration, proxies, sessions ----
+test("config: sensible defaults, production defaults, and clear errors for bad values", () => {
+  const dev = loadConfig({}, {});
+  assert.deepEqual([dev.prod, dev.port, dev.ai.provider, dev.trustProxy, dev.timeZone], [false, 3000, "stub", 0, "Australia/Sydney"]);
+  const prod = loadConfig({}, { NODE_ENV: "production" });
+  assert.deepEqual([prod.prod, prod.ai.provider, prod.trustProxy], [true, "off", 1]);               // AI off and one proxy trusted in production
+  assert.equal(loadConfig({}, { NODE_ENV: "production", TRUST_PROXY: "0" }).trustProxy, 0);
+  assert.equal(loadConfig({}, { PORT: "" }).port, 3000);                                              // empty counts as not set
+  assert.equal(loadConfig({ port: 1 }, {}).port, 1);                                                  // explicit overrides win
+  for (const env of [{ PORT: "banana" }, { PORT: "70000" }, { TIMEZONE: "Mars/Olympus" }, { AI_PROVIDER: "gpt" }, { TRUST_PROXY: "-1" }, { ORG_NAME: "x".repeat(61) }])
+    assert.throws(() => loadConfig({}, env), /Invalid configuration/, JSON.stringify(env));
+  assert.throws(() => loadConfig({}, { AI_PROVIDER: "anthropic" }), /ANTHROPIC_API_KEY/);
+  assert.equal(loadConfig({}, { AI_PROVIDER: "anthropic", ANTHROPIC_API_KEY: "k" }).ai.provider, "anthropic");
+});
+
+test("sessions: expired ones are swept out, live ones are kept", async () => {
+  const s = await start();
+  const uid = s.db.prepare("SELECT id FROM users WHERE email = 'learner@example.com'").pluck().get();
+  createSession(s.db, uid);                                                                           // live
+  const stale = createSession(s.db, uid);
+  s.db.prepare("UPDATE sessions SET expires_at = ? WHERE id_hash != (SELECT id_hash FROM sessions LIMIT 1)").run(new Date(Date.now() - 1000).toISOString());
+  assert.equal(s.db.prepare("SELECT COUNT(*) FROM sessions").pluck().get(), 2);
+  assert.equal(purgeExpiredSessions(s.db), 1);
+  assert.equal(s.db.prepare("SELECT COUNT(*) FROM sessions").pluck().get(), 1);
+  assert.equal(purgeExpiredSessions(s.db), 0);
+  assert.ok(stale);
+  s.close();
+});
+
+test("proxy: with one trusted proxy the rate limit counts each visitor separately; without it they share a limit", async () => {
+  const tries = async trustProxy => {
+    const db = openDb(":memory:");
+    const server = createApp({ db, config: { trustProxy }, ai: stubProvider() }).listen(0);
+    servers.push(server);
+    const url = `http://localhost:${server.address().port}/api/auth/login`;
+    const attempt = ip => fetch(url, { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": ip }, body: JSON.stringify({ email: "a@b.co", password: "x" }) }).then(r => r.status);
+    for (let i = 0; i < 10; i++) await attempt("203.0.113.1");                                         // one visitor uses up their ten attempts
+    return { sameVisitor: await attempt("203.0.113.1"), otherVisitor: await attempt("203.0.113.2") };
+  };
+  assert.deepEqual(await tries(1), { sameVisitor: 429, otherVisitor: 401 });                          // others are unaffected
+  assert.deepEqual(await tries(0), { sameVisitor: 429, otherVisitor: 429 });                          // everyone shares one address
 });
 
 test("tidyQuestions drops bad questions; cleanBody strips scripts", () => {

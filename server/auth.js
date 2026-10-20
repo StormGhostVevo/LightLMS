@@ -38,6 +38,10 @@ export function createSession(db, userId) {
     .run(sha(id), userId, now(), new Date(Date.now() + SESSION_MS).toISOString());
   return id;
 }
+/** Deletes every session that has expired and returns how many there were. */
+export function purgeExpiredSessions(db) {
+  return db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(now()).changes;
+}
 export const endSession = (db, id) => db.prepare("DELETE FROM sessions WHERE id_hash = ?").run(sha(id));
 export const endUserSessions = (db, userId) => db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
 

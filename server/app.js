@@ -16,6 +16,7 @@ const bad = (res, msg, status = 400) => res.status(status).json({ error: msg });
 
 export function createApp({ db, config, ai }) {
   const app = express();
+  app.set("trust proxy", config.trustProxy ?? 0);   // see TRUST_PROXY in config.js
   app.use(helmet());
   // JSON bodies are small, except a cover image upload (base64 of up to 2 MB).
   const smallJson = express.json({ limit: "200kb" }), imageJson = express.json({ limit: "3.5mb" });
