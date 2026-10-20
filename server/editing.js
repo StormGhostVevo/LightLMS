@@ -7,7 +7,6 @@ const bad = (res, msg, status = 400) => res.status(status).json({ error: msg });
 
 export const LIMITS = { lessons: 100, questions: 200, bodyChars: 100_000 };
 
-
 // Authoring: create and delete courses, add/edit/delete/reorder lessons and questions (staff only).
 // Edits to a published course are live straight away; there is no draft copy of a published course.
 // Anything that changes what a course requires re-checks completion so nobody is left stuck behind a rule that moved.
@@ -16,7 +15,8 @@ export function mountEditing({ admin, db, course, touch, evaluateEveryone }) {
 
   const lessonFields = (b, current = {}) => {
     const title = b.title === undefined ? current.title : plain(b.title).slice(0, 200);
-    if (b.body !== undefined && (typeof b.body !== "string" || b.body.length > LIMITS.bodyChars)) return { error: `A lesson body must be text up to ${LIMITS.bodyChars} characters` };
+    if (b.body !== undefined && (typeof b.body !== "string" || b.body.length > LIMITS.bodyChars))
+      return { error: `A lesson body must be text up to ${LIMITS.bodyChars} characters` };
     const body = b.body === undefined ? current.body : cleanBody(b.body);
     if (!title) return { error: "A lesson needs a title" };
     if (!body) return { error: "A lesson needs some content" };
@@ -26,10 +26,18 @@ export function mountEditing({ admin, db, course, touch, evaluateEveryone }) {
   // Reorders by id: the list must be exactly the current set, so nothing is dropped or invented by accident.
   const reorder = (table, courseId, order, res) => {
     const current = db.prepare(`SELECT id FROM ${table} WHERE course_id = ?`).pluck().all(courseId);
-    if (!Array.isArray(order) || order.length !== current.length || new Set(order).size !== order.length || !order.every(id => current.includes(id)))
+    if (
+      !Array.isArray(order) ||
+      order.length !== current.length ||
+      new Set(order).size !== order.length ||
+      !order.every(id => current.includes(id))
+    )
       return bad(res, "Send every id for this course exactly once as { order: [...] }");
     const set = db.prepare(`UPDATE ${table} SET position = ? WHERE id = ? AND course_id = ?`);
-    db.transaction(() => { order.forEach((id, i) => set.run(i, id, courseId)); touch(courseId); })();
+    db.transaction(() => {
+      order.forEach((id, i) => set.run(i, id, courseId));
+      touch(courseId);
+    })();
     res.json({ order });
   };
 
@@ -38,7 +46,8 @@ export function mountEditing({ admin, db, course, touch, evaluateEveryone }) {
     const title = plain(req.body?.title).slice(0, 200);
     if (!title) return bad(res, "A course needs a title");
     const t = now();
-    const { lastInsertRowid } = db.prepare("INSERT INTO courses (title, description, created_at, updated_at) VALUES (?, ?, ?, ?)")
+    const { lastInsertRowid } = db
+      .prepare("INSERT INTO courses (title, description, created_at, updated_at) VALUES (?, ?, ?, ?)")
       .run(title, plain(req.body?.description).slice(0, 1000), t, t);
     res.status(201).json({ id: lastInsertRowid, title });
   });
@@ -66,9 +75,15 @@ export function mountEditing({ admin, db, course, touch, evaluateEveryone }) {
     if (!c) return bad(res, "Course not found", 404);
     const f = lessonFields(req.body || {});
     if (f.error) return bad(res, f.error);
-    if (db.prepare("SELECT COUNT(*) FROM lessons WHERE course_id = ?").pluck().get(c.id) >= LIMITS.lessons) return bad(res, `A course can have up to ${LIMITS.lessons} lessons`, 409);
-    const pos = db.prepare("SELECT COALESCE(MAX(position) + 1, 0) FROM lessons WHERE course_id = ?").pluck().get(c.id);
-    const { lastInsertRowid } = db.prepare("INSERT INTO lessons (course_id, position, title, body) VALUES (?, ?, ?, ?)").run(c.id, pos, f.title, f.body);
+    if (db.prepare("SELECT COUNT(*) FROM lessons WHERE course_id = ?").pluck().get(c.id) >= LIMITS.lessons)
+      return bad(res, `A course can have up to ${LIMITS.lessons} lessons`, 409);
+    const pos = db
+      .prepare("SELECT COALESCE(MAX(position) + 1, 0) FROM lessons WHERE course_id = ?")
+      .pluck()
+      .get(c.id);
+    const { lastInsertRowid } = db
+      .prepare("INSERT INTO lessons (course_id, position, title, body) VALUES (?, ?, ?, ?)")
+      .run(c.id, pos, f.title, f.body);
     touch(c.id);
     cleanupLessonImages(db, c.id);
     res.status(201).json({ id: lastInsertRowid, position: pos, ...f });
@@ -95,11 +110,17 @@ export function mountEditing({ admin, db, course, touch, evaluateEveryone }) {
     const l = db.prepare("SELECT * FROM lessons WHERE id = ?").get(req.params.id);
     if (!l) return bad(res, "Lesson not found", 404);
     const c = course(l.course_id);
-    if (c.status === "published" && db.prepare("SELECT COUNT(*) FROM lessons WHERE course_id = ?").pluck().get(c.id) <= 1)
+    if (
+      c.status === "published" &&
+      db.prepare("SELECT COUNT(*) FROM lessons WHERE course_id = ?").pluck().get(c.id) <= 1
+    )
       return bad(res, "A published course needs at least one lesson. Unpublish it first.", 409);
     db.transaction(() => {
       db.prepare("DELETE FROM lessons WHERE id = ?").run(l.id);
-      db.prepare("UPDATE lessons SET position = position - 1 WHERE course_id = ? AND position > ?").run(c.id, l.position);   // close the gap
+      db.prepare("UPDATE lessons SET position = position - 1 WHERE course_id = ? AND position > ?").run(
+        c.id,
+        l.position,
+      ); // close the gap
       touch(c.id);
     })();
     recheck(c.id);
@@ -117,8 +138,14 @@ export function mountEditing({ admin, db, course, touch, evaluateEveryone }) {
     if (r.error) return bad(res, r.error);
     const status = b.status ?? "approved";
     if (!["draft", "approved"].includes(status)) return bad(res, "Status must be draft or approved");
-    if (db.prepare("SELECT COUNT(*) FROM questions WHERE course_id = ?").pluck().get(c.id) >= LIMITS.questions) return bad(res, `A course can have up to ${LIMITS.questions} questions`, 409);
-    const pos = db.prepare("SELECT COALESCE(MAX(position) + 1, 0) FROM questions WHERE course_id = ?").pluck().get(c.id);
+    if (
+      db.prepare("SELECT COUNT(*) FROM questions WHERE course_id = ?").pluck().get(c.id) >= LIMITS.questions
+    )
+      return bad(res, `A course can have up to ${LIMITS.questions} questions`, 409);
+    const pos = db
+      .prepare("SELECT COALESCE(MAX(position) + 1, 0) FROM questions WHERE course_id = ?")
+      .pluck()
+      .get(c.id);
     const id = insertQuestion(db, c.id, pos, r.value, "manual", status);
     touch(c.id);
     recheck(c.id);

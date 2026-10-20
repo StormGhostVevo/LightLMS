@@ -4,13 +4,20 @@
   "private": true,
   "type": "module",
   "description": "A lightweight, AI-integrated learning platform: courses, lessons and quizzes",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server/index.js",
     "dev": "node --watch --env-file-if-exists=.env --env-file-if-exists=.env.local server/index.js",
     "create-user": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server/cli.js create-user",
     "seed-demo": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server/seed-demo.js",
-    "test": "node --test server/test/*.test.js"
+    "test": "node --test server/test/*.test.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc -p tsconfig.server.json && tsc -p tsconfig.client.json",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.134.0",
@@ -20,5 +27,17 @@
     "helmet": "8.3.0",
     "sanitize-html": "2.18.1",
     "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.20.5",
+    "@types/sanitize-html": "^2.16.2",
+    "eslint": "^9.39.5",
+    "globals": "^17.13.0",
+    "jsdom": "^26.1.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.3"
   }
 }

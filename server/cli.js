@@ -10,8 +10,12 @@ if (cmd !== "create-user" || !validEmail(email) || !ROLES.includes(role)) {
   process.exit(1);
 }
 const db = openDb(loadConfig().dbPath);
-if (db.prepare("SELECT 1 FROM users WHERE email = ?").get(email)) { console.error("That email already has an account."); process.exit(1); }
+if (db.prepare("SELECT 1 FROM users WHERE email = ?").get(email)) {
+  console.error("That email already has an account.");
+  process.exit(1);
+}
 const pw = newPassword();
-db.prepare("INSERT INTO users (email, role, password_hash, must_change_password, created_at) VALUES (?, ?, ?, 1, ?)")
-  .run(email, role, await hashPassword(pw), new Date().toISOString());
+db.prepare(
+  "INSERT INTO users (email, role, password_hash, must_change_password, created_at) VALUES (?, ?, ?, 1, ?)",
+).run(email, role, await hashPassword(pw), new Date().toISOString());
 console.log(`Created ${role} ${email}\nTemporary password (shown once): ${pw}`);

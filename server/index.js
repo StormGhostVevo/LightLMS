@@ -23,4 +23,6 @@ const sweep = () => {
 sweep();
 setInterval(sweep, 60 * 60 * 1000).unref();
 
-app.listen(config.port, () => console.log(`lightlms on http://localhost:${config.port} (AI: ${config.ai.provider})`));
+app.listen(config.port, () =>
+  console.log(`lightlms on http://localhost:${config.port} (AI: ${config.ai.provider})`),
+);

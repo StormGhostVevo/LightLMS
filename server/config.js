@@ -16,7 +16,10 @@ const schema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   DATABASE_PATH: z.string().min(1).default("data/lightlms.sqlite"),
   ORG_NAME: z.string().max(60).default("lightlms"),
-  TIMEZONE: z.string().refine(validZone, "must be a time zone such as Australia/Sydney").default("Australia/Sydney"),
+  TIMEZONE: z
+    .string()
+    .refine(validZone, "must be a time zone such as Australia/Sydney")
+    .default("Australia/Sydney"),
   AI_PROVIDER: z.enum(["stub", "anthropic", "off"]).optional(),
   ANTHROPIC_API_KEY: z.string().default(""),
   AI_MODEL: z.string().min(1).default("claude-sonnet-5-5"),
@@ -39,7 +42,8 @@ export function loadConfig(overrides = {}, env = process.env) {
   const e = parsed.data;
   const prod = e.NODE_ENV === "production";
   const provider = e.AI_PROVIDER ?? (prod ? "off" : "stub");
-  if (provider === "anthropic" && !e.ANTHROPIC_API_KEY) throw new Error("Invalid configuration:\n  AI_PROVIDER=anthropic needs ANTHROPIC_API_KEY");
+  if (provider === "anthropic" && !e.ANTHROPIC_API_KEY)
+    throw new Error("Invalid configuration:\n  AI_PROVIDER=anthropic needs ANTHROPIC_API_KEY");
   return {
     prod,
     port: e.PORT,

@@ -9,22 +9,31 @@ export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 // The file's own first bytes decide what it is. Whatever the browser or the caller claims is ignored,
 // and SVG is not allowed at all because it can carry scripts.
 export function sniff(b) {
-  if (b.length > 12 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
+  if (b.length > 12 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])))
+    return "image/png";
   if (b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
-  if (b.length > 12 && b.subarray(0, 4).toString("latin1") === "RIFF" && b.subarray(8, 12).toString("latin1") === "WEBP") return "image/webp";
+  if (
+    b.length > 12 &&
+    b.subarray(0, 4).toString("latin1") === "RIFF" &&
+    b.subarray(8, 12).toString("latin1") === "WEBP"
+  )
+    return "image/webp";
   if (b.length > 6 && ["GIF87a", "GIF89a"].includes(b.subarray(0, 6).toString("latin1"))) return "image/gif";
   return null;
 }
 
-export const MAX_LESSON_IMAGES = 60, MAX_LESSON_IMAGE_BYTES = 25 * 1024 * 1024;
+export const MAX_LESSON_IMAGES = 60,
+  MAX_LESSON_IMAGE_BYTES = 25 * 1024 * 1024;
 const KEY = /\/media\/([A-Za-z0-9_-]{22})(?![A-Za-z0-9_-])/g;
 
 // Decodes and checks an uploaded image: base64 text, at most 2 MB, and really a PNG, JPEG, WebP or GIF.
 function readImage(body) {
   const data = body?.data;
-  if (typeof data !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) return { error: "Send the image as base64 text in { data }" };
+  if (typeof data !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(data))
+    return { error: "Send the image as base64 text in { data }" };
   const bytes = Buffer.from(data, "base64");
-  if (bytes.length > MAX_IMAGE_BYTES) return { error: "That image is over 2 MB. Use a smaller one.", status: 413 };
+  if (bytes.length > MAX_IMAGE_BYTES)
+    return { error: "That image is over 2 MB. Use a smaller one.", status: 413 };
   const mime = sniff(bytes);
   if (!mime) return { error: "Use a PNG, JPEG, WebP or GIF image" };
   return { bytes, mime };
@@ -38,7 +47,9 @@ export function cleanupLessonImages(db, courseId) {
     for (const m of body.matchAll(KEY)) used.add(m[1]);
   const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const del = db.prepare("DELETE FROM images WHERE key = ?");
-  for (const row of db.prepare("SELECT key FROM images WHERE course_id = ? AND kind = 'lesson' AND created_at < ?").all(courseId, cutoff))
+  for (const row of db
+    .prepare("SELECT key FROM images WHERE course_id = ? AND kind = 'lesson' AND created_at < ?")
+    .all(courseId, cutoff))
     if (!used.has(row.key)) del.run(row.key);
 }
 
@@ -54,12 +65,15 @@ export function mountImages({ app, admin, db, course, touch }) {
     if (img.error) return bad(res, img.error, img.status);
     const { bytes, mime } = img;
     const alt = decorative === true ? "" : plain(req.body.alt).slice(0, 200);
-    if (decorative !== true && !alt) return bad(res, "Describe the image for people who can't see it, or mark it as decorative");
+    if (decorative !== true && !alt)
+      return bad(res, "Describe the image for people who can't see it, or mark it as decorative");
 
     const key = randomBytes(16).toString("base64url");
     db.transaction(() => {
       db.prepare("DELETE FROM images WHERE course_id = ? AND kind = 'cover'").run(c.id);
-      db.prepare("INSERT INTO images (key, course_id, kind, mime, bytes, size, created_at) VALUES (?, ?, 'cover', ?, ?, ?, ?)").run(key, c.id, mime, bytes, bytes.length, now());
+      db.prepare(
+        "INSERT INTO images (key, course_id, kind, mime, bytes, size, created_at) VALUES (?, ?, 'cover', ?, ?, ?, ?)",
+      ).run(key, c.id, mime, bytes, bytes.length, now());
       db.prepare("UPDATE courses SET image_key = ?, image_alt = ? WHERE id = ?").run(key, alt, c.id);
       touch(c.id);
     })();
@@ -72,11 +86,19 @@ export function mountImages({ app, admin, db, course, touch }) {
     if (!c) return bad(res, "Course not found", 404);
     const img = readImage(req.body);
     if (img.error) return bad(res, img.error, img.status);
-    const { n, total } = db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(size), 0) AS total FROM images WHERE course_id = ? AND kind = 'lesson'").get(c.id);
-    if (n >= MAX_LESSON_IMAGES) return bad(res, `A course can have up to ${MAX_LESSON_IMAGES} lesson images`, 409);
-    if (total + img.bytes.length > MAX_LESSON_IMAGE_BYTES) return bad(res, "This course's lesson images are over 25 MB in total. Remove some first.", 409);
+    const { n, total } = db
+      .prepare(
+        "SELECT COUNT(*) AS n, COALESCE(SUM(size), 0) AS total FROM images WHERE course_id = ? AND kind = 'lesson'",
+      )
+      .get(c.id);
+    if (n >= MAX_LESSON_IMAGES)
+      return bad(res, `A course can have up to ${MAX_LESSON_IMAGES} lesson images`, 409);
+    if (total + img.bytes.length > MAX_LESSON_IMAGE_BYTES)
+      return bad(res, "This course's lesson images are over 25 MB in total. Remove some first.", 409);
     const key = randomBytes(16).toString("base64url");
-    db.prepare("INSERT INTO images (key, course_id, kind, mime, bytes, size, created_at) VALUES (?, ?, 'lesson', ?, ?, ?, ?)").run(key, c.id, img.mime, img.bytes, img.bytes.length, now());
+    db.prepare(
+      "INSERT INTO images (key, course_id, kind, mime, bytes, size, created_at) VALUES (?, ?, 'lesson', ?, ?, ?, ?)",
+    ).run(key, c.id, img.mime, img.bytes, img.bytes.length, now());
     res.status(201).json({ url: `/media/${key}` });
   });
 
@@ -95,6 +117,12 @@ export function mountImages({ app, admin, db, course, touch }) {
   app.get("/media/:key", (req, res) => {
     const img = db.prepare("SELECT mime, bytes FROM images WHERE key = ?").get(req.params.key);
     if (!img) return res.status(404).type("text").send("Not found");
-    res.set({ "Content-Type": img.mime, "Cache-Control": "public, max-age=31536000, immutable", "Content-Disposition": "inline" }).send(img.bytes);
+    res
+      .set({
+        "Content-Type": img.mime,
+        "Cache-Control": "public, max-age=31536000, immutable",
+        "Content-Disposition": "inline",
+      })
+      .send(img.bytes);
   });
 }
