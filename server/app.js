@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import express from "express";
 import helmet from "helmet";
 import { errorHandler } from "./http.js";
+import { createLogger, requestLogger } from "./logger.js";
 import { createEvents } from "./events.js";
 import { registerAudit, mountAudit } from "./audit.js";
 import { authRouter, usersRouter, sessionMiddleware, requireLogin, jsonOnly } from "./auth.js";
@@ -22,11 +23,11 @@ import { mountCertificates } from "./certificates.js";
 /**
  * Builds the whole server. This file only wires things together; the rules live in the services, the routes
  * in the route files, and who may do what in permissions.js.
- * @param {{ db: import("better-sqlite3").Database, config: any, ai: any }} deps
+ * @param {{ db: import("better-sqlite3").Database, config: any, ai: any, log?: import("./logger.js").Logger }} deps
  */
-export function createApp({ db, config, ai }) {
+export function createApp({ db, config, ai, log = createLogger({ level: config.logLevel ?? "silent" }) }) {
   // ---- things the routes share ----
-  const events = createEvents();
+  const events = createEvents({ log });
   registerAudit({ db, events });
   const courses = createCourses(db);
   const enrolment = createEnrolment(db);
@@ -36,6 +37,7 @@ export function createApp({ db, config, ai }) {
   // ---- the request pipeline ----
   const app = express();
   app.set("trust proxy", config.trustProxy ?? 0); // see TRUST_PROXY in config.js
+  app.use(requestLogger(log));
   app.use(helmet());
   // JSON bodies are small, except a cover image upload (base64 of up to 2 MB).
   const smallJson = express.json({ limit: "200kb" });
@@ -55,7 +57,7 @@ export function createApp({ db, config, ai }) {
         .get();
       res.json({ ok: true, version, schema });
     } catch (err) {
-      console.error("Health check failed:", err);
+      log.error("health check failed", { err });
       res.status(503).json({ ok: false });
     }
   });
@@ -95,7 +97,7 @@ export function createApp({ db, config, ai }) {
 
   app.use("/api/admin", admin);
   app.use("/", express.static(new URL("../public", import.meta.url).pathname));
-  app.use(errorHandler);
+  app.use(errorHandler(log));
   app.locals.adminRouter = admin; // lets the tests check that every admin route has a listed capability
   return app;
 }

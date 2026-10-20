@@ -65,7 +65,7 @@ export const adminGuard = (req, res, next) => {
   if (!req.user) return bad(res, "Please sign in", 401);
   const needed = capabilityFor(req.method, req.path);
   if (!needed) {
-    console.error(
+    (req.log ?? console).error(
       `No capability is listed for ${req.method} /api/admin${req.path}; refusing. Add it to ADMIN_ROUTES.`,
     );
     return bad(res, "You don't have access to that", 403);

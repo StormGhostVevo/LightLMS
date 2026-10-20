@@ -10,5 +10,9 @@ declare namespace Express {
       expires_at?: string;
     } | null;
     sid?: string;
+    /** A short random id for this request, also sent back as X-Request-Id. */
+    id: string;
+    /** A logger that already carries the request id. */
+    log: import("../server/logger.js").Logger;
   }
 }

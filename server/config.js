@@ -25,6 +25,7 @@ const schema = z.object({
   AI_MODEL: z.string().min(1).default("claude-sonnet-5-5"),
   // How many proxies sit in front of the server (Railway and most hosts: 1). It decides which address counts as the
   // visitor's, so rate limits apply per person and not to everyone behind the proxy at once.
+  LOG_LEVEL: z.enum(["silent", "error", "warn", "info", "debug"]).default("info"),
   TRUST_PROXY: z.coerce.number().int().min(0).max(5).optional(),
 });
 
@@ -51,6 +52,7 @@ export function loadConfig(overrides = {}, env = process.env) {
     timeZone: e.TIMEZONE,
     dbPath: e.DATABASE_PATH,
     trustProxy: e.TRUST_PROXY ?? (prod ? 1 : 0),
+    logLevel: e.LOG_LEVEL,
     ai: { provider, apiKey: e.ANTHROPIC_API_KEY, model: e.AI_MODEL },
     ...overrides,
   };

@@ -30,8 +30,9 @@ export const track = server => {
 /**
  * Starts an app on a free port, with an admin, an author and a learner already created (all with the password PW).
  * @param {any} [ai] the AI provider; the offline stand-in by default
+ * @param {object} [extra] more things to give createApp, such as a `log` to capture
  */
-export async function start(ai = stubProvider()) {
+export async function start(ai = stubProvider(), extra = {}) {
   const db = openDb(":memory:");
   const hash = await hashPassword(PW);
   for (const role of ["admin", "author", "learner"])
@@ -41,7 +42,7 @@ export async function start(ai = stubProvider()) {
       hash,
       new Date().toISOString(),
     );
-  const server = track(createApp({ db, config: {}, ai }).listen(0));
+  const server = track(createApp({ db, config: {}, ai, ...extra }).listen(0));
   const { port } = /** @type {import("node:net").AddressInfo} */ (server.address());
   const base = `http://localhost:${port}`;
 

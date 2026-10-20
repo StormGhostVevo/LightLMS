@@ -18,11 +18,14 @@ export class HttpError extends Error {
   }
 }
 
-/** The last middleware: turns HttpError and body-parser problems into JSON, and hides anything unexpected. */
-export function errorHandler(err, req, res, _next) {
+/**
+ * The last middleware: turns HttpError and body-parser problems into JSON. Anything unexpected is logged in full
+ * (with the request id) and shown to the person only as a short message with that reference, never a stack trace.
+ */
+export const errorHandler = log => (err, req, res, _next) => {
   if (err instanceof HttpError) return bad(res, err.message, err.status);
   if (err.type === "entity.too.large") return bad(res, "That request is too large", 413);
   if (err.type === "entity.parse.failed") return bad(res, "Invalid JSON");
-  console.error(err);
-  return bad(res, "Something went wrong", 500);
-}
+  (req.log ?? log).error("unhandled error", { err });
+  return bad(res, req.id ? `Something went wrong (reference ${req.id})` : "Something went wrong", 500);
+};

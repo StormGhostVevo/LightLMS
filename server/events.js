@@ -9,7 +9,10 @@
  * who is listening. Today the only listener is the audit log; email or analytics would be added the same way.
  * Observers run straight away, one after another, and one that throws never breaks the request that caused the event.
  */
-export function createEvents() {
+/**
+ * @param {{ log?: import("./logger.js").Logger }} [options] where to report an observer that fails
+ */
+export function createEvents({ log } = {}) {
   /** @type {Observer[]} */
   const observers = [];
   return {
@@ -26,7 +29,7 @@ export function createEvents() {
         try {
           fn(name, event);
         } catch (err) {
-          console.error(`An observer failed on ${name}:`, err);
+          log?.error("event observer failed", { event: name, err });
         }
       }
     },
