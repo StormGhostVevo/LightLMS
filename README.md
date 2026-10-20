@@ -6,6 +6,7 @@ material and generates quiz questions, always reviewed by a person before learne
 Built as: Node 22+ (Express), SQLite (better-sqlite3), plain JavaScript, no build step. One process, one database file.
 
 Moodle's features are rebuilt from scratch (clean-room, no Moodle code). See [docs/moodle-feature-map.md](docs/moodle-feature-map.md).
+For an honest look at where the project stands, its maintainability compared with Moodle, known problems and what to build next, see [docs/review-and-roadmap.md](docs/review-and-roadmap.md).
 
 ## Learner interface
 
