@@ -3,6 +3,8 @@ import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { authRouter, usersRouter, sessionMiddleware, requireLogin, requireRole, jsonOnly } from "./auth.js";
 import { mountCertificates } from "./certificates.js";
+import { mountTheme } from "./theme.js";
+import { mountImages, imageOf } from "./images.js";
 import { mountEditing } from "./editing.js";
 import { mountQuiz } from "./quiz.js";
 import { mountCompletion, evaluateEveryone, evaluate, progress } from "./completion.js";
@@ -15,7 +17,9 @@ const toQuestion = r => ({ id: r.id, prompt: r.prompt, options: JSON.parse(r.opt
 export function createApp({ db, config, ai }) {
   const app = express();
   app.use(helmet());
-  app.use(express.json({ limit: "200kb" }));
+  // JSON bodies are small, except a cover image upload (base64 of up to 2 MB).
+  const smallJson = express.json({ limit: "200kb" }), imageJson = express.json({ limit: "3.5mb" });
+  app.use((req, res, next) => (req.method === "PUT" && /^\/api\/admin\/courses\/\d+\/image$/.test(req.path) ? imageJson : smallJson)(req, res, next));
   app.get("/health", (req, res) => res.json({ ok: true }));
   app.use("/api", jsonOnly, sessionMiddleware(db));
   // Someone on a temporary password can only use the sign-in and password routes until they choose their own.
@@ -44,12 +48,13 @@ export function createApp({ db, config, ai }) {
 
   admin.get("/ai/status", (req, res) => res.json({ provider: ai.name, model: ai.model ?? null, sendsToThirdParty: !!ai.external }));
 
-  admin.get("/courses", (req, res) => res.json(db.prepare("SELECT id, title, description, status, updated_at FROM courses ORDER BY updated_at DESC").all()));
+  admin.get("/courses", (req, res) => res.json(db.prepare("SELECT id, title, description, status, updated_at, image_key, image_alt FROM courses ORDER BY updated_at DESC").all().map(({ image_key, image_alt, ...c }) => ({ ...c, image: imageOf({ image_key, image_alt }) }))));
 
   admin.get("/courses/:id", (req, res) => {
     const c = course(req.params.id);
     if (!c) return bad(res, "Course not found", 404);
-    res.json({ ...c,
+    const { image_key, image_alt, ...rest } = c;
+    res.json({ ...rest, image: imageOf(c),
       lessons: db.prepare("SELECT id, position, title, body FROM lessons WHERE course_id = ? ORDER BY position").all(c.id),
       questions: db.prepare("SELECT * FROM questions WHERE course_id = ? ORDER BY position").all(c.id).map(toQuestion) });
   });
@@ -181,6 +186,8 @@ export function createApp({ db, config, ai }) {
   });
 
   mountEditing({ admin, db, course, touch, evaluateEveryone });
+  mountImages({ app, admin, db, course, touch });
+  mountTheme({ app, db, requireRole });
   app.use("/api/admin/users", requireRole("admin"), usersRouter({ db }));
   app.use("/api/admin", admin);
 
@@ -198,12 +205,13 @@ export function createApp({ db, config, ai }) {
   app.get("/api/courses", requireLogin, (req, res) =>
     res.json(db.prepare(`SELECT c.* FROM courses c JOIN enrolments e ON e.course_id = c.id
                          WHERE c.status = 'published' AND e.user_id = ? ORDER BY c.title`).all(req.user.id)
-      .map(c => { const p = progress(db, c, req.user.id); return { id: c.id, title: c.title, description: c.description, percent: p.percent, completed: p.completed }; })));
+      .map(c => { const p = progress(db, c, req.user.id); return { id: c.id, title: c.title, description: c.description, image: imageOf(c), percent: p.percent, completed: p.completed }; })));
 
   // Open courses I could join.
   app.get("/api/courses/available", requireLogin, (req, res) =>
-    res.json(db.prepare(`SELECT id, title, description FROM courses WHERE status = 'published' AND enrolment = 'open'
-                         AND id NOT IN (SELECT course_id FROM enrolments WHERE user_id = ?) ORDER BY title`).all(req.user.id)));
+    res.json(db.prepare(`SELECT id, title, description, image_key, image_alt FROM courses WHERE status = 'published' AND enrolment = 'open'
+                         AND id NOT IN (SELECT course_id FROM enrolments WHERE user_id = ?) ORDER BY title`).all(req.user.id)
+      .map(({ image_key, image_alt, ...c }) => ({ ...c, image: imageOf({ image_key, image_alt }) }))));
 
   app.post("/api/courses/:id/enrol", requireLogin, (req, res) => {
     const c = course(req.params.id);
@@ -215,7 +223,7 @@ export function createApp({ db, config, ai }) {
   app.get("/api/courses/:id", requireLogin, (req, res) => {
     const c = visible(req, res);
     if (!c) return;
-    res.json({ id: c.id, title: c.title, description: c.description, passMark: c.pass_mark, maxAttempts: c.max_attempts,
+    res.json({ id: c.id, title: c.title, description: c.description, image: imageOf(c), passMark: c.pass_mark, maxAttempts: c.max_attempts,
       lessons: db.prepare("SELECT id, title, body FROM lessons WHERE course_id = ? ORDER BY position").all(c.id),
       questions: db.prepare("SELECT id, prompt, options FROM questions WHERE course_id = ? AND status = 'approved' ORDER BY position").all(c.id)
         .map(q => ({ id: q.id, prompt: q.prompt, options: JSON.parse(q.options) })) });

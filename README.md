@@ -33,6 +33,28 @@ Publish and Unpublish are at the top of every course. Admins also get **Manage u
 is shown once), change roles, deactivate or reactivate, reset passwords. Everything here is enforced by the server as
 well, so hiding a button is never the only protection.
 
+### Appearance (admins)
+
+**Manage, then Appearance** changes the whole site's look: a site name (top bar and sign-in page), a font, the text size and
+the colours. Colours come in three sets chosen together: **page** (background, cards, text, links), **buttons** (button and
+button text) and **top bar** (bar and its text), because setting one without the colour that sits on it can make the site
+unreadable. Each set is optional; anything you don't set follows the device's light or dark mode. The server refuses any
+pair of colours below a 4.5:1 contrast ratio (WCAG AA), and the page shows the ratios live next to a preview. There are
+presets (Default, Dark, High contrast, Warm, Ocean). Fonts are limited to ones already installed on people's devices, so
+nothing loads from outside the site. The look is delivered as `/theme.css`, built only from validated values.
+
+- `GET /api/theme` (public), `GET /api/theme/options`, `GET /theme.css`; `PUT|DELETE /api/admin/theme` (admin only)
+
+### Cover images
+
+Each course can have a cover image (Settings tab), shown on its card and at the top of the course. PNG, JPEG, WebP or GIF up
+to 2 MB; large photos are shrunk in the browser before upload. The server decides what a file is from its bytes (not what the
+browser claims), and SVG is refused because it can carry scripts. Alt text is required unless you mark the image decorative.
+Images are stored in the database, so a backup of the one file includes them. Image addresses (`/media/<random key>`) are public
+but unguessable, so don't use a cover image for anything sensitive. Replacing or removing an image deletes the old one.
+
+- `PUT|DELETE /api/admin/courses/:id/image` `{ data: base64, alt, decorative }`, `GET /media/:key`
+
 Try it with sample data (development only; it refuses to run in production):
 
     npm run seed-demo   # admin@demo.test, author@demo.test, learner@demo.test, password demo-password-1

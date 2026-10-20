@@ -1,7 +1,7 @@
 import { api } from "../api.js";
 import { h, notice } from "../dom.js";
 
-export function loginView(onSignedIn) {
+export function loginView(onSignedIn, siteName) {
   const error = h("div");
   const email = h("input", { id: "email", type: "email", autocomplete: "username", required: true });
   const password = h("input", { id: "password", type: "password", autocomplete: "current-password", required: true });
@@ -15,6 +15,7 @@ export function loginView(onSignedIn) {
       catch (err) { error.append(notice(err.message)); password.value = ""; password.focus(); }
       finally { submit.disabled = false; }
     } },
+    siteName ? h("p", { class: "brand-line" }, siteName) : null,
     h("h1", null, "Sign in"),
     error,
     h("label", { for: "email" }, "Email"), email,

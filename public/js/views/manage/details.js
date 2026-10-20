@@ -1,5 +1,6 @@
 import { api } from "../../api.js";
-import { h, notice, field, guarded } from "../../dom.js";
+import { h, notice, field, guarded, btn } from "../../dom.js";
+import { prepareImage } from "../../image.js";
 
 export function detailsTab(body, { id, course, reload }) {
   const msg = h("div");
@@ -19,7 +20,35 @@ export function detailsTab(body, { id, course, reload }) {
       if (await guarded(e.target, msg, () => api(`/admin/courses/${id}`, { method: "DELETE" }))) location.hash = "#/manage";
     } }, "Delete course");
 
+  // ---- cover image ----
+  const imgMsg = h("div");
+  const file = h("input", { type: "file", accept: "image/png,image/jpeg,image/webp,image/gif" });
+  const alt = h("input", { type: "text", maxlength: 200, value: course.image?.alt || "" });
+  const decorative = h("input", { type: "checkbox", id: "img-decorative" });
+  const upload = h("button", { type: "button", onclick: async e => {
+      if (!file.files[0]) return void imgMsg.replaceChildren(notice("Choose an image first."));
+      if (!decorative.checked && !alt.value.trim()) return void imgMsg.replaceChildren(notice("Describe the image for people who can't see it, or tick Decorative."));
+      const ok = await guarded(e.target, imgMsg, async () => {
+        imgMsg.replaceChildren(notice("Uploading.", "ok"));
+        const data = await prepareImage(file.files[0]);
+        return api(`/admin/courses/${id}/image`, { method: "PUT", body: { data, alt: alt.value, decorative: decorative.checked } });
+      });
+      if (ok) await reload();
+    } }, course.image ? "Replace image" : "Upload image");
+  const imageCard = h("section", { class: "card" }, h("h2", null, "Cover image"),
+    h("p", { class: "hint" }, "Shown on the course card and at the top of the course. Large photos are shrunk automatically. PNG, JPEG, WebP or GIF, up to 2 MB."),
+    imgMsg,
+    course.image ? h("img", { class: "thumb", src: course.image.url, alt: course.image.alt || "Cover image (decorative)" }) : h("p", { class: "hint" }, "No image yet."),
+    field("Choose an image", file),
+    field("Describe the image", alt, "A short description for people using screen readers, for example: A hard hat on a desk."),
+    h("div", { class: "field check" }, decorative, h("label", { for: "img-decorative" }, "Decorative (no description needed)")),
+    h("p", { class: "row" }, upload, course.image ? btn("Remove image", async e => {
+      if (!confirm("Remove the cover image?")) return;
+      if (await guarded(e.target, imgMsg, () => api(`/admin/courses/${id}/image`, { method: "DELETE" }))) await reload();
+    }, "danger") : null));
+
   body.append(
+    imageCard,
     h("form", { class: "card", novalidate: true, onsubmit: async e => {
         e.preventDefault();
         const done = await guarded(save, msg, () => api(`/admin/courses/${id}`, { method: "PATCH", body: {

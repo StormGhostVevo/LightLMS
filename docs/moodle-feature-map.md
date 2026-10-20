@@ -8,7 +8,7 @@ Status: **done** (in the repo), **next** (planned first), **later**, **skip** (d
 
 | Moodle area | What it does | lightlms approach | Status |
 |---|---|---|---|
-| Courses | Container for learning content | `courses` table; create, edit, publish, unpublish, delete drafts | done |
+| Courses | Container for learning content | `courses` table; create, edit, publish, unpublish, delete drafts; cover image | done |
 | Resources: Page / Book | Rich-text content, chaptered | `lessons` (sanitised HTML); add, edit, delete, reorder | done |
 | Quiz: multiple choice | Auto-marked questions | `questions`, marked server-side, answers never sent to learners | done |
 | Question bank | Reusable questions | Questions are per course for now; a shared bank with tags later | later |
@@ -31,7 +31,7 @@ Status: **done** (in the repo), **next** (planned first), **later**, **skip** (d
 | Reports and analytics | Logs, activity, at-risk | Completion, scores, weak-question report | later |
 | Backup and restore | Course export/import | Course JSON export/import; SQLite backups | later |
 | SCORM / H5P / LTI | Standards-based content | LTI later if needed; SCORM skip (heavy) | skip |
-| Plugins and themes | Extensibility | Skip: one small codebase is the point | skip |
+| Plugins and themes | Extensibility | No plugins (one small codebase is the point). Themes: admin-set colours, font, size and site name, with contrast checks | done (themes) / skip (plugins) |
 | Mobile app | Native app | Responsive web only (learner pages done) | skip |
 | Multi-language | Language packs | Australian English first; string table later | later |
 | Multi-tenant | Many sites | `org_id` already on content tables | later |

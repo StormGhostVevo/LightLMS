@@ -41,14 +41,15 @@ export async function manageView(main, { user }) {
 
   main.replaceChildren(
     h("h1", null, "Manage courses"),
-    admin ? h("p", null, h("a", { href: "#/manage/users" }, "Manage users")) : null,
+    admin ? h("p", { class: "row" }, h("a", { href: "#/manage/users" }, "Manage users"), h("a", { href: "#/manage/theme" }, "Appearance")) : null,
     h("div", { class: "grid2" }, create, draft),
     h("h2", null, "All courses"),
     courses.length
       ? h("div", { class: "table-wrap" }, h("table", null,
           h("caption", { class: "sr" }, "All courses"),
-          h("thead", null, h("tr", null, ["Course", "Status", "Last changed"].map(t => h("th", { scope: "col" }, t)))),
+          h("thead", null, h("tr", null, ["Image", "Course", "Status", "Last changed"].map(t => h("th", { scope: "col", class: t === "Image" ? "sr" : null }, t)))),
           h("tbody", null, courses.map(c => h("tr", null,
+            h("td", null, c.image ? h("img", { class: "thumb", src: c.image.url, alt: "", loading: "lazy" }) : null),
             h("th", { scope: "row" }, h("a", { href: `#/manage/course/${c.id}` }, c.title)),
             h("td", null, h("span", { class: `badge ${c.status}` }, c.status === "published" ? "Published" : "Draft")),
             h("td", null, when(c.updated_at)))))))

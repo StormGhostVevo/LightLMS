@@ -118,6 +118,7 @@ export async function courseView(main, { params }) {
   main.replaceChildren(
     h("p", null, h("a", { href: "#/" }, "Back to my courses")),
     h("h1", null, course.title),
+    course.image ? h("img", { class: "banner", src: course.image.url, alt: course.image.alt }) : null,
     course.description ? h("p", { class: "lead" }, course.description) : null,
     message, progressBox,
     h("section", null, h("h2", null, "Lessons"), course.lessons.map(lessonEl)),
