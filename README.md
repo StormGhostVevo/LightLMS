@@ -7,6 +7,20 @@ Built as: Node 22+ (Express), SQLite (better-sqlite3), plain JavaScript, no buil
 
 Moodle's features are rebuilt from scratch (clean-room, no Moodle code). See [docs/moodle-feature-map.md](docs/moodle-feature-map.md).
 
+## Learner interface
+
+A single-page app in plain JavaScript (no framework, no build step) in `public/`, served by the same process. Pages: sign-in,
+forced change of a temporary password, my courses (with progress and open courses to join), a course (lessons with
+mark-as-done, the quiz with attempts and review, progress, certificate link), grades, and account (name, certificates,
+password). Everything the server sends is rendered as text; the only HTML shown is lesson content, which the server has
+already sanitised. It works with the strict content security policy (no inline scripts or styles on the page itself),
+keyboard navigation, light and dark mode, and phone widths.
+
+Try it with sample data (development only; it refuses to run in production):
+
+    npm run seed-demo   # admin@demo.test, author@demo.test, learner@demo.test, password demo-password-1
+    npm run dev         # http://localhost:3000
+
 ## Run
 
     npm install

@@ -32,7 +32,7 @@ Status: **done** (in the repo), **next** (planned first), **later**, **skip** (d
 | Backup and restore | Course export/import | Course JSON export/import; SQLite backups | later |
 | SCORM / H5P / LTI | Standards-based content | LTI later if needed; SCORM skip (heavy) | skip |
 | Plugins and themes | Extensibility | Skip: one small codebase is the point | skip |
-| Mobile app | Native app | Responsive web only | skip |
+| Mobile app | Native app | Responsive web only (learner pages done) | skip |
 | Multi-language | Language packs | Australian English first; string table later | later |
 | Multi-tenant | Many sites | `org_id` already on content tables | later |
 
@@ -47,6 +47,6 @@ Status: **done** (in the repo), **next** (planned first), **later**, **skip** (d
 1. ~~Users, roles and sessions~~ (done).
 2. ~~Enrolment and per-learner access~~ (done).
 3. ~~Attempts, pass marks, explanations, gradebook~~ (done).
-4. More question types and a UI for authors and learners.
+4. More question types. UI: learner side done; author and admin side next.
 5. ~~Completion tracking~~ (done), ~~certificates~~ (done).
 6. Reports, then notifications.

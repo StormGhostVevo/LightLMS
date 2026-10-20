@@ -9,6 +9,7 @@
     "start": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server/index.js",
     "dev": "node --watch --env-file-if-exists=.env --env-file-if-exists=.env.local server/index.js",
     "create-user": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server/cli.js create-user",
+    "seed-demo": "node --env-file-if-exists=.env --env-file-if-exists=.env.local server/seed-demo.js",
     "test": "node --test server/test/*.test.js"
   },
   "dependencies": {

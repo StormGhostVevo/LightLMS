@@ -18,6 +18,9 @@ export function createApp({ db, config, ai }) {
   app.use(express.json({ limit: "200kb" }));
   app.get("/health", (req, res) => res.json({ ok: true }));
   app.use("/api", jsonOnly, sessionMiddleware(db));
+  // Someone on a temporary password can only use the sign-in and password routes until they choose their own.
+  app.use("/api", (req, res, next) =>
+    req.user?.must_change_password && !req.path.startsWith("/auth/") ? res.status(403).json({ error: "Choose a new password first", mustChangePassword: true }) : next());
   app.use("/api/auth", authRouter({ db, config }));
 
   // ---- authoring (authors and admins) ----

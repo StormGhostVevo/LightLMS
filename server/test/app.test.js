@@ -570,6 +570,24 @@ test("certificates survive their course being deleted and stay verifiable", asyn
   s.close();
 });
 
+test("a temporary password must be replaced before anything else works", async () => {
+  const s = await start();
+  const admin = await s.as("admin");
+  const made = (await admin("/api/admin/users", { method: "POST", body: { email: "fresh@example.com" } })).body;
+  const login = await s.parse(await s.raw("/api/auth/login", { method: "POST", body: { email: "fresh@example.com", password: made.temporaryPassword } }));
+  assert.equal(login.body.mustChangePassword, true);
+  const fresh = (path, opts = {}) => s.raw(path, { ...opts, cookie: login.setCookie.split(";")[0] }).then(s.parse);
+  const blocked = await fresh("/api/courses");
+  assert.deepEqual([blocked.status, blocked.body.mustChangePassword], [403, true]);
+  assert.equal((await fresh("/api/auth/me")).status, 200);                                                   // still allowed
+  const changed = await fresh("/api/auth/password", { method: "POST", body: { current: made.temporaryPassword, next: "my-own-long-password" } });
+  assert.equal(changed.status, 204);
+  assert.equal((await fresh("/api/courses")).status, 401);                                                   // the old session was ended
+  const next = await s.parse(await s.raw("/api/courses", { cookie: changed.setCookie.split(";")[0] }));
+  assert.equal(next.status, 200);                                                                            // the new one works
+  s.close();
+});
+
 test("tidyQuestions drops bad questions; cleanBody strips scripts", () => {
   const flags = [];
   const out = tidyQuestions([
