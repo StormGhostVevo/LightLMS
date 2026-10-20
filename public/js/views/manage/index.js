@@ -90,6 +90,7 @@ export async function manageView(main, { user }) {
           { class: "row" },
           h("a", { href: "#/manage/users" }, "Manage users"),
           h("a", { href: "#/manage/theme" }, "Appearance"),
+          h("a", { href: "#/manage/audit" }, "Audit log"),
         )
       : null,
     h("div", { class: "grid2" }, create, draft),

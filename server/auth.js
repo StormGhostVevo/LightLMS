@@ -3,6 +3,7 @@ import { rateLimit } from "express-rate-limit";
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { now, bad } from "./http.js";
+import { target } from "./events.js";
 
 const scrypt = promisify(scryptCb);
 const SESSION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -101,7 +102,7 @@ const publicUser = u => ({
   mustChangePassword: !!u.must_change_password,
 });
 
-export function authRouter({ db, config }) {
+export function authRouter({ db, config, events }) {
   const r = express.Router();
   const cookieOpts = { secure: config.prod };
   const loginLimit = rateLimit({
@@ -155,13 +156,14 @@ export function authRouter({ db, config }) {
     db.prepare("UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?").run(hash, u.id);
     endUserSessions(db, u.id);
     setCookie(res, createSession(db, u.id), { ...cookieOpts, maxAge: SESSION_MS / 1000 });
+    events.emit("user.password_changed", { actor: req.user, target: target("user", u.id, u.email) });
     res.status(204).end();
   });
   return r;
 }
 
 // Admin-only user management. Passwords are generated here and shown once; the admin passes them on.
-export function usersRouter({ db }) {
+export function usersRouter({ db, events }) {
   const r = express.Router();
   const get = id => db.prepare("SELECT * FROM users WHERE id = ?").get(id);
   const activeAdmins = () =>
@@ -187,6 +189,11 @@ export function usersRouter({ db }) {
         `INSERT INTO users (email, name, role, password_hash, must_change_password, created_at) VALUES (?, ?, ?, ?, 1, ?)`,
       )
       .run(email.trim(), String(name).slice(0, 200), role, await hashPassword(temp), now());
+    events.emit("user.created", {
+      actor: req.user,
+      target: target("user", lastInsertRowid, email.trim()),
+      detail: { role },
+    });
     res.status(201).json({ id: lastInsertRowid, email: email.trim(), role, temporaryPassword: temp });
   });
 
@@ -206,6 +213,11 @@ export function usersRouter({ db }) {
       u.id,
     );
     if (!active || role !== u.role) endUserSessions(db, u.id);
+    const who = target("user", u.id, u.email);
+    if (role !== u.role)
+      events.emit("user.role_changed", { actor: req.user, target: who, detail: { from: u.role, to: role } });
+    if (!active && u.active) events.emit("user.deactivated", { actor: req.user, target: who });
+    if (active && !u.active) events.emit("user.reactivated", { actor: req.user, target: who });
     let temporaryPassword;
     if (b.resetPassword) {
       temporaryPassword = newPassword();
@@ -214,6 +226,7 @@ export function usersRouter({ db }) {
         u.id,
       );
       endUserSessions(db, u.id);
+      events.emit("user.password_reset", { actor: req.user, target: who });
     }
     res.json({ id: u.id, role, active, ...(temporaryPassword ? { temporaryPassword } : {}) });
   });

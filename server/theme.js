@@ -1,4 +1,5 @@
 import { now, bad } from "./http.js";
+import { target } from "./events.js";
 
 // The site's look, set by an admin: colours (in groups, so a theme can't end up unreadable), a font and a text size.
 // It is served as a stylesheet of CSS variables, so the pages themselves never change.
@@ -100,7 +101,7 @@ export function themeCss(t) {
   return `:root{${v.join(";")};${scheme}}\nhtml{font-size:${SIZES[t.fontSize]}}\n`;
 }
 
-export function mountTheme({ app, db, requireCapability }) {
+export function mountTheme({ app, db, requireCapability, events }) {
   const read = () => {
     const row = db.prepare("SELECT value FROM settings WHERE key = 'theme'").pluck().get();
     if (!row) return DEFAULT_THEME;
@@ -127,10 +128,20 @@ export function mountTheme({ app, db, requireCapability }) {
     db.prepare(
       "INSERT INTO settings (key, value, updated_at) VALUES ('theme', ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
     ).run(JSON.stringify(r.value), now());
+    events.emit("theme.changed", {
+      actor: req.user,
+      target: target("theme", "site", r.value.siteName || "lightlms"),
+      detail: {
+        font: r.value.font,
+        fontSize: r.value.fontSize,
+        customColours: Object.keys(r.value.colours).length > 0,
+      },
+    });
     res.json(r.value);
   });
   app.delete("/api/admin/theme", requireCapability("theme:manage"), (req, res) => {
     db.prepare("DELETE FROM settings WHERE key = 'theme'").run();
+    events.emit("theme.reset", { actor: req.user, target: target("theme", "site") });
     res.json(DEFAULT_THEME);
   });
 }

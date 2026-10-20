@@ -53,6 +53,7 @@ export const ADMIN_ROUTES = [
   ["*", /^\/courses\/\d+\/users\/\d+\/attempts$/, "results:view"],
   ["*", /^\/courses\/\d+\/certificates$/, "certificate:manage"],
   ["*", /^\/certificates\/\d+$/, "certificate:manage"],
+  ["GET", /^\/audit$/, "audit:view"],
 ];
 
 /** The capability a request to /api/admin needs, or undefined if the route isn't listed. */

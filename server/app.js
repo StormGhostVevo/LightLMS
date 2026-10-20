@@ -12,8 +12,12 @@ import { mountCompletion, evaluateEveryone, evaluate, progress } from "./complet
 import { AiError, MIN_SOURCE, MAX_SOURCE, tidyDraft, plain } from "./ai.js";
 import { TYPES, cleanQuestion, tidyQuestions, insertQuestion, toAdmin, forLearner } from "./questions.js";
 import { now, bad, errorHandler } from "./http.js";
+import { createEvents, target } from "./events.js";
+import { registerAudit, mountAudit } from "./audit.js";
 
 export function createApp({ db, config, ai }) {
+  const events = createEvents();
+  registerAudit({ db, events });
   const app = express();
   app.set("trust proxy", config.trustProxy ?? 0); // see TRUST_PROXY in config.js
   app.use(helmet());
@@ -33,7 +37,7 @@ export function createApp({ db, config, ai }) {
       ? res.status(403).json({ error: "Choose a new password first", mustChangePassword: true })
       : next(),
   );
-  app.use("/api/auth", authRouter({ db, config }));
+  app.use("/api/auth", authRouter({ db, config, events }));
 
   // ---- authoring (authors and admins) ----
   const admin = express.Router();
@@ -108,6 +112,11 @@ export function createApp({ db, config, ai }) {
         insertQuestions(lastInsertRowid, d.questions, "ai");
         return lastInsertRowid;
       })();
+      events.emit("ai.course_drafted", {
+        actor: req.user,
+        target: target("course", id, d.title),
+        detail: { lessons: d.lessons.length, questions: d.questions.length },
+      });
       res.status(201).json({ id, flags: d.flags });
     } catch (err) {
       err instanceof AiError ? bad(res, err.message, err.status) : next(err);
@@ -139,6 +148,11 @@ export function createApp({ db, config, ai }) {
         insertQuestions(c.id, qs, "ai", start);
         touch(c.id);
       })();
+      events.emit("ai.quiz_generated", {
+        actor: req.user,
+        target: target("course", c.id, c.title),
+        detail: { added: qs.length, types: [...new Set(types)] },
+      });
       res.status(201).json({ added: qs.length, flags });
     } catch (err) {
       err instanceof AiError ? bad(res, err.message, err.status) : next(err);
@@ -242,6 +256,27 @@ export function createApp({ db, config, ai }) {
     );
     // A looser rule can complete people who already meet it. Completions already earned are never taken back.
     if (completion !== c.completion_rule) evaluateEveryone(db, course(c.id));
+    const after = {
+      title,
+      description,
+      enrolment,
+      pass_mark: passMark,
+      max_attempts: maxAttempts,
+      show_answers: showAnswers,
+      completion_rule: completion,
+      certificate_enabled: certificate,
+    };
+    const changed = Object.fromEntries(
+      Object.entries(after)
+        .filter(([k, v]) => k !== "description" && c[k] !== v)
+        .map(([k, v]) => [k, { from: c[k], to: v }]),
+    );
+    if (Object.keys(changed).length)
+      events.emit("course.settings_changed", {
+        actor: req.user,
+        target: target("course", c.id, title),
+        detail: changed,
+      });
     res.json({
       id: c.id,
       title,
@@ -293,6 +328,12 @@ export function createApp({ db, config, ai }) {
           (ins.run(c.id, u.id, now(), req.user.id).changes ? out.enrolled : out.alreadyEnrolled).push(email);
       }
     })();
+    if (out.enrolled.length)
+      events.emit("enrolment.added", {
+        actor: req.user,
+        target: target("course", c.id, c.title),
+        detail: { people: out.enrolled.length },
+      });
     res.json(out);
   });
 
@@ -300,7 +341,15 @@ export function createApp({ db, config, ai }) {
     const r = db
       .prepare("DELETE FROM enrolments WHERE course_id = ? AND user_id = ?")
       .run(req.params.id, req.params.userId);
-    r.changes ? res.status(204).end() : bad(res, "That person isn't enrolled", 404);
+    if (!r.changes) return bad(res, "That person isn't enrolled", 404);
+    const c = course(req.params.id);
+    const who = db.prepare("SELECT email FROM users WHERE id = ?").pluck().get(req.params.userId);
+    events.emit("enrolment.removed", {
+      actor: req.user,
+      target: target("course", c.id, c.title),
+      detail: { person: who },
+    });
+    res.status(204).end();
   });
 
   admin.post("/courses/:id/publish", (req, res) => {
@@ -309,13 +358,15 @@ export function createApp({ db, config, ai }) {
     if (!db.prepare("SELECT COUNT(*) FROM lessons WHERE course_id = ?").pluck().get(c.id))
       return bad(res, "Add at least one lesson first");
     db.prepare("UPDATE courses SET status = 'published', updated_at = ? WHERE id = ?").run(now(), c.id);
+    events.emit("course.published", { actor: req.user, target: target("course", c.id, c.title) });
     res.json({ id: c.id, status: "published" });
   });
 
-  mountEditing({ admin, db, course, touch, evaluateEveryone });
+  mountEditing({ admin, db, course, touch, evaluateEveryone, events });
+  mountAudit({ admin, db });
   mountImages({ app, admin, db, course, touch });
-  mountTheme({ app, db, requireCapability });
-  app.use("/api/admin/users", requireCapability("user:manage"), usersRouter({ db }));
+  mountTheme({ app, db, requireCapability, events });
+  app.use("/api/admin/users", requireCapability("user:manage"), usersRouter({ db, events }));
   app.use("/api/admin", admin);
 
   // ---- learner (signed in; published courses only; correct answers never leave the server) ----
@@ -403,7 +454,7 @@ export function createApp({ db, config, ai }) {
 
   mountQuiz({ app, admin, db, course, visible, enrolled, requireLogin, evaluate });
   mountCompletion({ app, db, visible, enrolled, requireLogin });
-  mountCertificates({ app, admin, db, config, course, visible, requireLogin });
+  mountCertificates({ app, admin, db, config, course, visible, requireLogin, events });
 
   app.use("/", express.static(new URL("../public", import.meta.url).pathname));
 

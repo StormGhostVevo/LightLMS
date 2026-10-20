@@ -2,13 +2,14 @@ import { cleanBody, plain } from "./ai.js";
 import { cleanQuestion, insertQuestion, toAdmin } from "./questions.js";
 import { cleanupLessonImages } from "./images.js";
 import { now, bad } from "./http.js";
+import { target } from "./events.js";
 
 export const LIMITS = { lessons: 100, questions: 200, bodyChars: 100_000 };
 
 // Authoring: create and delete courses, add/edit/delete/reorder lessons and questions (staff only).
 // Edits to a published course are live straight away; there is no draft copy of a published course.
 // Anything that changes what a course requires re-checks completion so nobody is left stuck behind a rule that moved.
-export function mountEditing({ admin, db, course, touch, evaluateEveryone }) {
+export function mountEditing({ admin, db, course, touch, evaluateEveryone, events }) {
   const recheck = courseId => evaluateEveryone(db, course(courseId));
 
   const lessonFields = (b, current = {}) => {
@@ -47,6 +48,7 @@ export function mountEditing({ admin, db, course, touch, evaluateEveryone }) {
     const { lastInsertRowid } = db
       .prepare("INSERT INTO courses (title, description, created_at, updated_at) VALUES (?, ?, ?, ?)")
       .run(title, plain(req.body?.description).slice(0, 1000), t, t);
+    events.emit("course.created", { actor: req.user, target: target("course", lastInsertRowid, title) });
     res.status(201).json({ id: lastInsertRowid, title });
   });
 
@@ -55,6 +57,7 @@ export function mountEditing({ admin, db, course, touch, evaluateEveryone }) {
     const c = course(req.params.id);
     if (!c) return bad(res, "Course not found", 404);
     db.prepare("UPDATE courses SET status = 'draft', updated_at = ? WHERE id = ?").run(now(), c.id);
+    events.emit("course.unpublished", { actor: req.user, target: target("course", c.id, c.title) });
     res.json({ id: c.id, status: "draft" });
   });
 
@@ -64,6 +67,7 @@ export function mountEditing({ admin, db, course, touch, evaluateEveryone }) {
     if (!c) return bad(res, "Course not found", 404);
     if (c.status !== "draft") return bad(res, "Unpublish the course before deleting it", 409);
     db.prepare("DELETE FROM courses WHERE id = ?").run(c.id);
+    events.emit("course.deleted", { actor: req.user, target: target("course", c.id, c.title) });
     res.status(204).end();
   });
 

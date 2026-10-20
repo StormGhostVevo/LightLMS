@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { rateLimit } from "express-rate-limit";
 import { plain } from "./ai.js";
 import { now, bad } from "./http.js";
+import { target } from "./events.js";
 
 // 32 characters with no look-alikes (no 0/O, 1/I), so each byte maps evenly and codes are easy to read out.
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -77,7 +78,7 @@ const mine = r => ({
   url: `/certificate/${r.code}`,
 });
 
-export function mountCertificates({ app, admin, db, config, course, visible, requireLogin }) {
+export function mountCertificates({ app, admin, db, config, course, visible, requireLogin, events }) {
   const forUser = issueMissingForUser(db),
     forCourse = issueMissingForCourse(db);
 
@@ -182,6 +183,16 @@ export function mountCertificates({ app, admin, db, config, course, visible, req
     db.prepare(
       "UPDATE certificates SET recipient_name = ?, revoked_at = ?, revoked_reason = ? WHERE id = ?",
     ).run(name, revokedAt, reason, r.id);
+    const who = target("certificate", r.id, `${r.code} (${r.recipient_name})`);
+    if (revokedAt && !r.revoked_at)
+      events.emit("certificate.revoked", { actor: req.user, target: who, detail: { reason } });
+    if (!revokedAt && r.revoked_at) events.emit("certificate.restored", { actor: req.user, target: who });
+    if (name !== r.recipient_name)
+      events.emit("certificate.name_changed", {
+        actor: req.user,
+        target: who,
+        detail: { from: r.recipient_name, to: name },
+      });
     res.json(mine(db.prepare("SELECT * FROM certificates WHERE id = ?").get(r.id)));
   });
 }
