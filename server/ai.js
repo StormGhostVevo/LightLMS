@@ -4,16 +4,17 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import sanitizeHtml from "sanitize-html";
 import { TYPES, tidyQuestions } from "./questions.js";
 import { plain } from "./text.js";
+import { HttpError } from "./http.js";
 export { plain };
 
 // Two AI jobs: draft a course from source material, and generate quiz questions from lesson content.
 // Output is always treated as untrusted: lesson HTML is sanitised and questions are validated before saving.
 // The API key only lives on the server. With AI_PROVIDER=anthropic, pasted text is sent to Anthropic.
 
-export class AiError extends Error {
+/** An AI problem the person can understand. It is an HttpError, so the central error handler shows it as it is. */
+export class AiError extends HttpError {
   constructor(message, status = 502) {
-    super(message);
-    this.status = status;
+    super(status, message);
   }
 }
 
