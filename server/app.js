@@ -2,6 +2,7 @@ import express from "express";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { authRouter, usersRouter, sessionMiddleware, requireLogin, requireRole, jsonOnly } from "./auth.js";
+import { mountCertificates } from "./certificates.js";
 import { mountEditing } from "./editing.js";
 import { mountQuiz } from "./quiz.js";
 import { mountCompletion, evaluateEveryone, evaluate, progress } from "./completion.js";
@@ -124,15 +125,17 @@ export function createApp({ db, config, ai }) {
     if (!Number.isInteger(passMark) || passMark < 0 || passMark > 100) return bad(res, "Pass mark must be a whole number from 0 to 100");
     const maxAttempts = b.maxAttempts === undefined ? c.max_attempts : b.maxAttempts;   // null = unlimited
     if (maxAttempts !== null && (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 50)) return bad(res, "Max attempts must be 1 to 50, or null for unlimited");
+    const certificate = b.certificate === undefined ? c.certificate_enabled : (typeof b.certificate === "boolean" ? +b.certificate : null);
+    if (certificate === null) return bad(res, "certificate must be true or false");
     const completion = b.completion ?? c.completion_rule;
     if (!["lessons", "quiz", "both"].includes(completion)) return bad(res, "completion must be lessons, quiz or both");
     const showAnswers = b.showAnswers ?? c.show_answers;
     if (!["never", "after_pass", "always"].includes(showAnswers)) return bad(res, "showAnswers must be never, after_pass or always");
-    db.prepare("UPDATE courses SET title = ?, description = ?, enrolment = ?, pass_mark = ?, max_attempts = ?, show_answers = ?, completion_rule = ?, updated_at = ? WHERE id = ?")
-      .run(title, description, enrolment, passMark, maxAttempts, showAnswers, completion, now(), c.id);
+    db.prepare("UPDATE courses SET title = ?, description = ?, enrolment = ?, pass_mark = ?, max_attempts = ?, show_answers = ?, completion_rule = ?, certificate_enabled = ?, updated_at = ? WHERE id = ?")
+      .run(title, description, enrolment, passMark, maxAttempts, showAnswers, completion, certificate, now(), c.id);
     // A looser rule can complete people who already meet it. Completions already earned are never taken back.
     if (completion !== c.completion_rule) evaluateEveryone(db, course(c.id));
-    res.json({ id: c.id, title, description, enrolment, passMark, maxAttempts, showAnswers, completion });
+    res.json({ id: c.id, title, description, enrolment, passMark, maxAttempts, showAnswers, completion, certificate: !!certificate });
   });
 
   admin.get("/courses/:id/enrolments", (req, res) => {
@@ -217,6 +220,7 @@ export function createApp({ db, config, ai }) {
 
   mountQuiz({ app, admin, db, course, visible, enrolled, requireLogin, evaluate });
   mountCompletion({ app, db, course, visible, enrolled, requireLogin });
+  mountCertificates({ app, admin, db, config, course, visible, requireLogin });
 
   app.use("/", express.static(new URL("../public", import.meta.url).pathname));
 

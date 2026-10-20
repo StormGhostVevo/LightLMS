@@ -64,6 +64,19 @@ nothing to require never completes.
 - Learner: `GET /api/courses/:id/progress`, `POST|DELETE /api/courses/:id/lessons/:lessonId/complete`; `GET /api/courses` now includes `percent` and `completed`
 - Staff: `PATCH /api/admin/courses/:id` takes `completion`; the gradebook shows lessons done and completion per learner
 
+Certificates: when someone completes a course, a certificate is issued automatically (switch off per course with
+`certificate: false`). Each has its own unguessable code (`LL-XXXXX-XXXXX`), so two people finishing the same course on
+the same day get different IDs. The name and course title are copied in when it is issued and the certificate survives
+the course being deleted. Completions from before certificates were switched on are issued the next time someone looks.
+The printable page is `/certificate/:code` (use the browser's Print or Save as PDF). **It and `/api/verify/:code` are
+public**: anyone with the code sees the holder's name, course and date, which is what verification means. Both are rate-limited.
+Set `ORG_NAME` and `TIMEZONE` in `.env` for what the page shows.
+
+- Learner: `GET /api/certificates`, `GET /api/courses/:id/certificate`, `PATCH /api/auth/me` `{ name }` (the name printed on certificates issued from then on)
+- Public: `GET /api/verify/:code`, `GET /certificate/:code`
+- Staff: `GET /api/admin/courses/:id/certificates`, `PATCH /api/admin/certificates/:id` `{ recipientName, revoked, reason }`
+  (correct a name, or revoke / restore; a revoked certificate shows as invalid), `PATCH /api/admin/courses/:id` takes `certificate`
+
 Authoring (authors and admins). Edits to a published course are live immediately; there is no separate draft of a published course.
 
 - Courses: `POST /api/admin/courses` `{ title, description }` (blank course), `POST .../:id/unpublish`, `DELETE .../:id` (drafts only, since it removes attempts and completions; unpublish first)

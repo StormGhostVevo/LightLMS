@@ -1,3 +1,5 @@
+import { issueCertificate } from "./certificates.js";
+
 const now = () => new Date().toISOString();
 const bad = (res, msg, status = 400) => res.status(status).json({ error: msg });
 
@@ -35,6 +37,7 @@ export function evaluate(db, c, userId) {
   if (!p.meetsRule) return null;
   const at = now();
   db.prepare("INSERT OR IGNORE INTO course_completions (user_id, course_id, completed_at) VALUES (?, ?, ?)").run(userId, c.id, at);
+  issueCertificate(db, c, userId);
   return at;
 }
 

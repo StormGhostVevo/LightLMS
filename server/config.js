@@ -5,6 +5,8 @@ export function loadConfig(overrides = {}) {
   const c = {
     prod,
     port: Number(env.PORT || 3000),
+    orgName: env.ORG_NAME || "lightlms",              // shown on certificates
+    timeZone: env.TIMEZONE || "Australia/Sydney",     // dates on certificates
     dbPath: env.DATABASE_PATH || "data/lightlms.sqlite",
     ai: {
       provider: env.AI_PROVIDER || (prod ? "off" : "stub"),

@@ -102,6 +102,14 @@ export function authRouter({ db, config }) {
 
   r.get("/me", requireLogin, (req, res) => res.json(publicUser(req.user)));
 
+  // The name printed on certificates issued from now on (existing certificates keep the name they were issued with).
+  r.patch("/me", requireLogin, (req, res) => {
+    const name = typeof req.body?.name === "string" ? req.body.name.replace(/[<>]/g, "").trim().slice(0, 200) : "";
+    if (!name) return bad(res, "Enter your name");
+    db.prepare("UPDATE users SET name = ? WHERE id = ?").run(name, req.user.id);
+    res.json(publicUser({ ...req.user, name }));
+  });
+
   // Changing a password ends every session, then signs this browser back in.
   r.post("/password", requireLogin, loginLimit, async (req, res) => {
     const { current, next: pw } = req.body || {};
